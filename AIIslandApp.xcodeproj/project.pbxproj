@@ -147,7 +147,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				8E32558291780EAA4F0EC877 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
@@ -265,11 +264,6 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		8E32558291780EAA4F0EC877 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
-			targetProxy = 9F840B236437834F389704F1 /* PBXContainerItemProxy */;
-		};
 		9B0819BDFE26E8B1EAF6C10B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
@@ -417,7 +411,6 @@
 		D7F9C169CDF2011A5DFCFBB1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGNING_ALLOWED = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -430,7 +423,6 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp";
 			};
 			name = Release;
 		};
@@ -492,7 +484,6 @@
 		EFB88FF852C4A9E2E6424F16 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGNING_ALLOWED = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -505,7 +496,6 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
 				SDKROOT = macosx;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp";
 			};
 			name = Debug;
 		};
