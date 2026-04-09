@@ -1,0 +1,503 @@
+{
+  "version": 1,
+  "notes": "Canonical fixture bundle for AI Dynamic Island phase-1 prototype. Use these exact values for mock harness, screenshots, and motion review.",
+  "shellStates": ["collapsed", "hoverExpanded", "pinnedExpanded", "collapsing"],
+  "fixtures": {
+    "both-idle": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "codex-ui-polish",
+            "taskLabel": "Polish island spacing",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.22,
+            "state": "idle"
+          },
+          {
+            "id": "codex-motion-tuning",
+            "taskLabel": "Tune promotion easing",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.18,
+            "state": "idle"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.34,
+          "weeklyRatio": 0.41
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-bridge-audit",
+            "taskLabel": "Audit bridge retries",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.27,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "codex-busy-claude-idle": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "codex-mac-shell",
+            "taskLabel": "Build notch window shell",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.61,
+            "state": "working"
+          },
+          {
+            "id": "codex-motion-handoff",
+            "taskLabel": "Refine card expansion",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.48,
+            "state": "thinking"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.56,
+          "weeklyRatio": 0.63
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-model-routing",
+            "taskLabel": "Check provider routing",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.19,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "codex-idle-claude-busy": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "codex-mascot-assets",
+            "taskLabel": "Lock mascot assets",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.14,
+            "state": "idle"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.29,
+          "weeklyRatio": 0.38
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "claude-layout-debug",
+            "taskLabel": "Debug provider layout",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.57,
+            "state": "working"
+          },
+          {
+            "id": "claude-spec-pass",
+            "taskLabel": "Review shell semantics",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.44,
+            "state": "thinking"
+          }
+        ]
+      }
+    },
+    "both-busy": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "codex-shell-controller",
+            "taskLabel": "Implement shell controller",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.67,
+            "state": "working"
+          },
+          {
+            "id": "codex-fixture-wiring",
+            "taskLabel": "Wire canonical fixtures",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.43,
+            "state": "thinking"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.62,
+          "weeklyRatio": 0.74
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "claude-provider-check",
+            "taskLabel": "Trace model source",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.52,
+            "state": "working"
+          },
+          {
+            "id": "claude-hover-polish",
+            "taskLabel": "Polish hover timing",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.36,
+            "state": "thinking"
+          }
+        ]
+      }
+    },
+    "attention-needed": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "attention",
+        "threads": [
+          {
+            "id": "codex-user-input",
+            "taskLabel": "Need repo selection",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.58,
+            "state": "attention"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.81,
+          "weeklyRatio": 0.77
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-fallback-copy",
+            "taskLabel": "Review fallback copy",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.21,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "codex-offline": {
+      "codex": {
+        "kind": "codex",
+        "online": false,
+        "availability": "offline",
+        "globalState": "offline",
+        "threads": [],
+        "quota": {
+          "availability": "unavailable"
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "claude-diagnose-proxy",
+            "taskLabel": "Diagnose proxy path",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.49,
+            "state": "working"
+          }
+        ]
+      }
+    },
+    "claude-offline": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "codex-fix-shadow",
+            "taskLabel": "Fix shadow continuity",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.46,
+            "state": "working"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.44,
+          "weeklyRatio": 0.53
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": false,
+        "availability": "offline",
+        "globalState": "offline",
+        "threads": []
+      }
+    },
+    "status-unavailable": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "statusUnavailable",
+        "globalState": "idle",
+        "threads": [],
+        "quota": {
+          "availability": "unavailable"
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-ui-audit",
+            "taskLabel": "Audit island copy",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.16,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "context-unavailable": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "codex-context-gap",
+            "taskLabel": "Probe context metrics",
+            "modelLabel": "GPT-5.4-mini",
+            "state": "thinking"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.33,
+          "weeklyRatio": 0.52
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-context-gap",
+            "taskLabel": "Check provider context",
+            "modelLabel": "GLM-5.1",
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "quota-unavailable": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "codex-rate-limit",
+            "taskLabel": "Read quota endpoint",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.31,
+            "state": "idle"
+          }
+        ],
+        "quota": {
+          "availability": "unavailable"
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-provider-audit",
+            "taskLabel": "Check provider model",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.24,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "thread-overflow": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "codex-thread-1",
+            "taskLabel": "Tune island spacing",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.41,
+            "state": "working"
+          },
+          {
+            "id": "codex-thread-2",
+            "taskLabel": "Implement hover hotzone",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.34,
+            "state": "thinking"
+          },
+          {
+            "id": "codex-thread-3",
+            "taskLabel": "Wire shell pin state",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.39,
+            "state": "working"
+          },
+          {
+            "id": "codex-thread-4",
+            "taskLabel": "Add quota fallback",
+            "modelLabel": "GPT-5.4-mini",
+            "contextRatio": 0.22,
+            "state": "idle"
+          },
+          {
+            "id": "codex-thread-5",
+            "taskLabel": "Record motion samples",
+            "modelLabel": "GPT-5.4",
+            "contextRatio": 0.27,
+            "state": "idle"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.58,
+          "weeklyRatio": 0.69
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "working",
+        "threads": [
+          {
+            "id": "claude-thread-1",
+            "taskLabel": "Review provider labels",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.47,
+            "state": "working"
+          },
+          {
+            "id": "claude-thread-2",
+            "taskLabel": "Check Kimi routing",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.29,
+            "state": "idle"
+          },
+          {
+            "id": "claude-thread-3",
+            "taskLabel": "Trim status copy",
+            "modelLabel": "GLM-5.1",
+            "contextRatio": 0.18,
+            "state": "idle"
+          },
+          {
+            "id": "claude-thread-4",
+            "taskLabel": "Keep this hidden",
+            "modelLabel": "Kimi K2.5",
+            "contextRatio": 0.14,
+            "state": "idle"
+          }
+        ]
+      }
+    },
+    "long-model-names": {
+      "codex": {
+        "kind": "codex",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "codex-long-model",
+            "taskLabel": "Normalize model badges",
+            "modelLabel": "gpt-5.4-internal-preview-long-build-string",
+            "contextRatio": 0.26,
+            "state": "idle"
+          }
+        ],
+        "quota": {
+          "availability": "available",
+          "fiveHourRatio": 0.37,
+          "weeklyRatio": 0.45
+        }
+      },
+      "claude": {
+        "kind": "claude",
+        "online": true,
+        "availability": "available",
+        "globalState": "idle",
+        "threads": [
+          {
+            "id": "claude-long-model",
+            "taskLabel": "Clamp provider labels",
+            "modelLabel": "kimi-k2.5-long-provider-build-2026-04-experimental",
+            "contextRatio": 0.28,
+            "state": "idle"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1C7F5E1A24D2F1BAA8E017A1 /* AgentState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B1 /* AgentState.swift */; };
+		1C7F5E1A24D2F1BAA8E017A2 /* FixtureScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B2 /* FixtureScenario.swift */; };
+		1C7F5E1A24D2F1BAA8E017A3 /* FixtureBundleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B3 /* FixtureBundleLoader.swift */; };
+		1C7F5E1A24D2F1BAA8E017A4 /* FixtureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B4 /* FixtureStore.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		697E90DEBFD46DF5C44397AE /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +31,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		1C7F5E1A24D2F1BAA8E017B1 /* AgentState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Domain/AgentState.swift; sourceTree = "<group>"; };
+		1C7F5E1A24D2F1BAA8E017B2 /* FixtureScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Domain/FixtureScenario.swift; sourceTree = "<group>"; };
+		1C7F5E1A24D2F1BAA8E017B3 /* FixtureBundleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Fixtures/FixtureBundleLoader.swift; sourceTree = "<group>"; };
+		1C7F5E1A24D2F1BAA8E017B4 /* FixtureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Fixtures/FixtureStore.swift; sourceTree = "<group>"; };
 		2141401CDCD22529D3D7683F /* AIIslandApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIIslandApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -244,6 +255,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1C7F5E1A24D2F1BAA8E017A1 /* AgentState.swift in Sources */,
+				1C7F5E1A24D2F1BAA8E017A2 /* FixtureScenario.swift in Sources */,
+				1C7F5E1A24D2F1BAA8E017A3 /* FixtureBundleLoader.swift in Sources */,
+				1C7F5E1A24D2F1BAA8E017A4 /* FixtureStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
