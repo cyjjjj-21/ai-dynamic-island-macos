@@ -1,6 +1,6 @@
 import Foundation
 
-enum FixtureScenario: String, CaseIterable, Codable {
+public enum FixtureScenario: String, CaseIterable, Codable, Sendable {
     case bothIdle = "both-idle"
     case codexBusyClaudeIdle = "codex-busy-claude-idle"
     case codexIdleClaudeBusy = "codex-idle-claude-busy"

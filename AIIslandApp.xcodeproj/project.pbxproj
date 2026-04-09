@@ -7,10 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1C7F5E1A24D2F1BAA8E017A1 /* AgentState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B1 /* AgentState.swift */; };
-		1C7F5E1A24D2F1BAA8E017A2 /* FixtureScenario.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B2 /* FixtureScenario.swift */; };
-		1C7F5E1A24D2F1BAA8E017A3 /* FixtureBundleLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B3 /* FixtureBundleLoader.swift */; };
-		1C7F5E1A24D2F1BAA8E017A4 /* FixtureStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5E1A24D2F1BAA8E017B4 /* FixtureStore.swift */; };
+		4D99C0000000000000000001 /* AIIslandCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D99C0000000000000000011 /* AIIslandCore.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,17 +22,21 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = 17AF2502D660944DD73025CF;
-			remoteInfo = AIIslandApp;
+			remoteGlobalIDString = 4D99C0000000000000000031;
+			remoteInfo = AIIslandCore;
+		};
+		4D99C0000000000000000021 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4D99C0000000000000000031;
+			remoteInfo = AIIslandCore;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		1C7F5E1A24D2F1BAA8E017B1 /* AgentState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Domain/AgentState.swift; sourceTree = "<group>"; };
-		1C7F5E1A24D2F1BAA8E017B2 /* FixtureScenario.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Domain/FixtureScenario.swift; sourceTree = "<group>"; };
-		1C7F5E1A24D2F1BAA8E017B3 /* FixtureBundleLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Fixtures/FixtureBundleLoader.swift; sourceTree = "<group>"; };
-		1C7F5E1A24D2F1BAA8E017B4 /* FixtureStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIIslandApp/Fixtures/FixtureStore.swift; sourceTree = "<group>"; };
 		2141401CDCD22529D3D7683F /* AIIslandApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIIslandApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4D99C0000000000000000011 /* AIIslandCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = AIIslandCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -65,6 +66,15 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4D99C0000000000000000012 /* AIIslandCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIIslandCore;
+			sourceTree = "<group>";
+		};
 		3151337EDACB92BC342FCA61 /* AIIslandAppUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -108,6 +118,7 @@
 			isa = PBXGroup;
 			children = (
 				2141401CDCD22529D3D7683F /* AIIslandApp.app */,
+				4D99C0000000000000000011 /* AIIslandCore.framework */,
 				780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */,
 				7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */,
 			);
@@ -118,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				CCB1F55AFA360E05980E1FB9 /* AIIslandApp */,
+				4D99C0000000000000000012 /* AIIslandCore */,
 				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
 				3151337EDACB92BC342FCA61 /* AIIslandAppUITests */,
 				CCB363C5CB9126421022C4F4 /* Products */,
@@ -131,12 +143,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 64EF40BFF4735082CA922919 /* Build configuration list for PBXNativeTarget "AIIslandApp" */;
 			buildPhases = (
+				4D99C0000000000000000041 /* Frameworks */,
 				EB5AF5A62B03C0192003E8A9 /* Sources */,
 				70B392B84D0E35D0AAABCDEF /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4D99C0000000000000000051 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				CCB1F55AFA360E05980E1FB9 /* AIIslandApp */,
@@ -148,16 +162,40 @@
 			productReference = 2141401CDCD22529D3D7683F /* AIIslandApp.app */;
 			productType = "com.apple.product-type.application";
 		};
+		4D99C0000000000000000031 /* AIIslandCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4D99C0000000000000000061 /* Build configuration list for PBXNativeTarget "AIIslandCore" */;
+			buildPhases = (
+				4D99C0000000000000000042 /* Sources */,
+				4D99C0000000000000000043 /* Frameworks */,
+				4D99C0000000000000000044 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4D99C0000000000000000012 /* AIIslandCore */,
+			);
+			name = AIIslandCore;
+			packageProductDependencies = (
+			);
+			productName = AIIslandCore;
+			productReference = 4D99C0000000000000000011 /* AIIslandCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 		95D60E4B7A1E507A24978AC3 /* AIIslandAppTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AF1816BDD799AFAB094E4F9D /* Build configuration list for PBXNativeTarget "AIIslandAppTests" */;
 			buildPhases = (
+				4D99C0000000000000000045 /* Frameworks */,
 				48BCE77DF72CDD2DC30F6B76 /* Sources */,
 				70B392B84D0E35D0AAABCD00 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4D99C0000000000000000052 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
@@ -220,11 +258,37 @@
 			projectRoot = "";
 			targets = (
 				17AF2502D660944DD73025CF /* AIIslandApp */,
+				4D99C0000000000000000031 /* AIIslandCore */,
 				95D60E4B7A1E507A24978AC3 /* AIIslandAppTests */,
 				A738CA8A832B15CDC90D7255 /* AIIslandAppUITests */,
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4D99C0000000000000000041 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4D99C0000000000000000043 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4D99C0000000000000000045 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4D99C0000000000000000001 /* AIIslandCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		70B392B84D0E35D0AAABCD00 /* Resources */ = {
@@ -235,6 +299,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		70B392B84D0E35D0AAABCD11 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4D99C0000000000000000044 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -255,10 +326,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1C7F5E1A24D2F1BAA8E017A1 /* AgentState.swift in Sources */,
-				1C7F5E1A24D2F1BAA8E017A2 /* FixtureScenario.swift in Sources */,
-				1C7F5E1A24D2F1BAA8E017A3 /* FixtureBundleLoader.swift in Sources */,
-				1C7F5E1A24D2F1BAA8E017A4 /* FixtureStore.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4D99C0000000000000000042 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -279,6 +353,16 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4D99C0000000000000000051 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4D99C0000000000000000031 /* AIIslandCore */;
+			targetProxy = 4D99C0000000000000000021 /* PBXContainerItemProxy */;
+		};
+		4D99C0000000000000000052 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4D99C0000000000000000031 /* AIIslandCore */;
+			targetProxy = 9F840B236437834F389704F1 /* PBXContainerItemProxy */;
+		};
 		9B0819BDFE26E8B1EAF6C10B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
@@ -403,6 +487,25 @@
 			};
 			name = Debug;
 		};
+		4D99C0000000000000000071 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandcore;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Debug;
+		};
 		9A6AE57FDB40CC4D789DB395 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -420,6 +523,25 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.uitests;
 				SDKROOT = macosx;
 				TEST_TARGET_NAME = AIIslandApp;
+			};
+			name = Release;
+		};
+		4D99C0000000000000000072 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				DEFINES_MODULE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandcore;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
 			};
 			name = Release;
 		};
@@ -540,6 +662,15 @@
 			buildConfigurations = (
 				5316145E88BB2DE0ED2D90E0 /* Debug */,
 				307CA8BC09ECFE6729393E66 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		4D99C0000000000000000061 /* Build configuration list for PBXNativeTarget "AIIslandCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4D99C0000000000000000071 /* Debug */,
+				4D99C0000000000000000072 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

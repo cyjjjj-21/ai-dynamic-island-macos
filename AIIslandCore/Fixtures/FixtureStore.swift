@@ -1,15 +1,15 @@
 import Foundation
 
-final class FixtureStore {
-    enum Error: Swift.Error, Equatable {
+public final class FixtureStore {
+    public enum Error: Swift.Error, Equatable {
         case missingScenario(FixtureScenario)
     }
 
     private let bundle: FixtureBundle
 
-    private(set) var currentScenario: FixtureScenario
+    public private(set) var currentScenario: FixtureScenario
 
-    init(bundle: FixtureBundle, initialScenario: FixtureScenario = .bothIdle) throws {
+    public init(bundle: FixtureBundle, initialScenario: FixtureScenario = .bothIdle) throws {
         self.bundle = bundle
         self.currentScenario = initialScenario
 
@@ -18,23 +18,23 @@ final class FixtureStore {
         }
     }
 
-    var currentFixtureName: String {
+    public var currentFixtureName: String {
         currentScenario.rawValue
     }
 
-    var allScenarios: [FixtureScenario] {
+    public var allScenarios: [FixtureScenario] {
         FixtureScenario.allCases
     }
 
-    var codex: AgentState {
+    public var codex: AgentState {
         resolvedStates.codex
     }
 
-    var claude: AgentState {
+    public var claude: AgentState {
         resolvedStates.claude
     }
 
-    func setScenario(_ scenario: FixtureScenario) throws {
+    public func setScenario(_ scenario: FixtureScenario) throws {
         guard bundle.fixtures[scenario.rawValue] != nil else {
             throw Error.missingScenario(scenario)
         }
