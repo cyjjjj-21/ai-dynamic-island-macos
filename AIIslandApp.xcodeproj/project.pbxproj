@@ -1,0 +1,554 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		697E90DEBFD46DF5C44397AE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17AF2502D660944DD73025CF;
+			remoteInfo = AIIslandApp;
+		};
+		9F840B236437834F389704F1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17AF2502D660944DD73025CF;
+			remoteInfo = AIIslandApp;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		2141401CDCD22529D3D7683F /* AIIslandApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIIslandApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIIslandAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		70B392B84D0E35D0AAABCD21 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
+		};
+		70B392B84D0E35D0AAABCD22 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 95D60E4B7A1E507A24978AC3 /* AIIslandAppTests */;
+		};
+		70B392B84D0E35D0AAABCD23 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A738CA8A832B15CDC90D7255 /* AIIslandAppUITests */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		3151337EDACB92BC342FCA61 /* AIIslandAppUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				70B392B84D0E35D0AAABCD23 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIIslandAppUITests;
+			sourceTree = "<group>";
+		};
+		5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				70B392B84D0E35D0AAABCD22 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIIslandAppTests;
+			sourceTree = "<group>";
+		};
+		CCB1F55AFA360E05980E1FB9 /* AIIslandApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				70B392B84D0E35D0AAABCD21 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = AIIslandApp;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXGroup section */
+		CCB363C5CB9126421022C4F4 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				2141401CDCD22529D3D7683F /* AIIslandApp.app */,
+				780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */,
+				7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		CDD5D327A9B943632F9AC2CD = {
+			isa = PBXGroup;
+			children = (
+				CCB1F55AFA360E05980E1FB9 /* AIIslandApp */,
+				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
+				3151337EDACB92BC342FCA61 /* AIIslandAppUITests */,
+				CCB363C5CB9126421022C4F4 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		17AF2502D660944DD73025CF /* AIIslandApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 64EF40BFF4735082CA922919 /* Build configuration list for PBXNativeTarget "AIIslandApp" */;
+			buildPhases = (
+				EB5AF5A62B03C0192003E8A9 /* Sources */,
+				70B392B84D0E35D0AAABCDEF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CCB1F55AFA360E05980E1FB9 /* AIIslandApp */,
+			);
+			name = AIIslandApp;
+			packageProductDependencies = (
+			);
+			productName = AIIslandApp;
+			productReference = 2141401CDCD22529D3D7683F /* AIIslandApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		95D60E4B7A1E507A24978AC3 /* AIIslandAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF1816BDD799AFAB094E4F9D /* Build configuration list for PBXNativeTarget "AIIslandAppTests" */;
+			buildPhases = (
+				48BCE77DF72CDD2DC30F6B76 /* Sources */,
+				70B392B84D0E35D0AAABCD00 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8E32558291780EAA4F0EC877 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
+			);
+			name = AIIslandAppTests;
+			packageProductDependencies = (
+			);
+			productName = AIIslandAppTests;
+			productReference = 780181E3C7FF7305B7A206EC /* AIIslandAppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		A738CA8A832B15CDC90D7255 /* AIIslandAppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 11C6AE1A55E8521BCF6041F2 /* Build configuration list for PBXNativeTarget "AIIslandAppUITests" */;
+			buildPhases = (
+				9AFAEBCE1257D255F71FB016 /* Sources */,
+				70B392B84D0E35D0AAABCD11 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9B0819BDFE26E8B1EAF6C10B /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3151337EDACB92BC342FCA61 /* AIIslandAppUITests */,
+			);
+			name = AIIslandAppUITests;
+			packageProductDependencies = (
+			);
+			productName = AIIslandAppUITests;
+			productReference = 7CB351523FA684561A3BD550 /* AIIslandAppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		AD6BC319F311915AC76FFB1E /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A738CA8A832B15CDC90D7255 = {
+						TestTargetID = 17AF2502D660944DD73025CF;
+					};
+				};
+			};
+			buildConfigurationList = 2E223CC869250C31E945C086 /* Build configuration list for PBXProject "AIIslandApp" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = CDD5D327A9B943632F9AC2CD;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				17AF2502D660944DD73025CF /* AIIslandApp */,
+				95D60E4B7A1E507A24978AC3 /* AIIslandAppTests */,
+				A738CA8A832B15CDC90D7255 /* AIIslandAppUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		70B392B84D0E35D0AAABCD00 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		70B392B84D0E35D0AAABCD11 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		70B392B84D0E35D0AAABCDEF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		48BCE77DF72CDD2DC30F6B76 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9AFAEBCE1257D255F71FB016 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EB5AF5A62B03C0192003E8A9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8E32558291780EAA4F0EC877 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
+			targetProxy = 9F840B236437834F389704F1 /* PBXContainerItemProxy */;
+		};
+		9B0819BDFE26E8B1EAF6C10B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
+			targetProxy = 697E90DEBFD46DF5C44397AE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		307CA8BC09ECFE6729393E66 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = AIIslandApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		36872276DDBC9FF999E59C75 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AIIslandAppUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = AIIslandApp;
+			};
+			name = Debug;
+		};
+		5316145E88BB2DE0ED2D90E0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = AIIslandApp/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		7783B50DE8AD32024E3A7243 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9A6AE57FDB40CC4D789DB395 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AIIslandAppUITests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.uitests;
+				SDKROOT = macosx;
+				TEST_TARGET_NAME = AIIslandApp;
+			};
+			name = Release;
+		};
+		D7F9C169CDF2011A5DFCFBB1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AIIslandAppTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp";
+			};
+			name = Release;
+		};
+		DFE8299979C0B3E50C26405E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		EFB88FF852C4A9E2E6424F16 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGNING_ALLOWED = NO;
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = AIIslandAppTests/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		11C6AE1A55E8521BCF6041F2 /* Build configuration list for PBXNativeTarget "AIIslandAppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				36872276DDBC9FF999E59C75 /* Debug */,
+				9A6AE57FDB40CC4D789DB395 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		2E223CC869250C31E945C086 /* Build configuration list for PBXProject "AIIslandApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7783B50DE8AD32024E3A7243 /* Debug */,
+				DFE8299979C0B3E50C26405E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		64EF40BFF4735082CA922919 /* Build configuration list for PBXNativeTarget "AIIslandApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5316145E88BB2DE0ED2D90E0 /* Debug */,
+				307CA8BC09ECFE6729393E66 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AF1816BDD799AFAB094E4F9D /* Build configuration list for PBXNativeTarget "AIIslandAppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EFB88FF852C4A9E2E6424F16 /* Debug */,
+				D7F9C169CDF2011A5DFCFBB1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = AD6BC319F311915AC76FFB1E /* Project object */;
+}
