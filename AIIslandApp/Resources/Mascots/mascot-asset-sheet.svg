@@ -1,0 +1,69 @@
+<svg width="720" height="320" viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg">
+  <rect width="720" height="320" fill="#0B0C10"/>
+  <text x="36" y="42" fill="#F2F4F8" font-family="SF Pro Display, Helvetica, Arial, sans-serif" font-size="22">AI Dynamic Island Mascot Asset Sheet</text>
+  <text x="36" y="68" fill="#A6ADBB" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="14">Locked direct-use and review references. Do not redraw from memory.</text>
+
+  <text x="36" y="110" fill="#DDE3EC" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="15">Actual-size direct-use assets</text>
+
+  <rect x="36" y="126" width="308" height="70" rx="20" fill="#14161B" stroke="rgba(255,255,255,0.08)"/>
+  <text x="60" y="150" fill="#A6ADBB" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="12">Claude Reference</text>
+  <g transform="translate(66,160)">
+    <rect x="4" y="3" width="14" height="9" fill="#D8898B"/>
+    <rect x="3" y="5" width="1" height="2" fill="#F3ABAD"/>
+    <rect x="18" y="5" width="1" height="2" fill="#F3ABAD"/>
+    <rect x="7" y="6" width="2" height="3" fill="#0D0909"/>
+    <rect x="13" y="6" width="2" height="3" fill="#0D0909"/>
+    <rect x="6" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="8.5" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="12.5" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="15" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+  </g>
+  <text x="108" y="178" fill="#F2F4F8" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="13">22×20 px canonical asset</text>
+  <text x="108" y="196" fill="#A6ADBB" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="12">Use directly for implementation baseline</text>
+
+  <rect x="376" y="126" width="308" height="70" rx="20" fill="#14161B" stroke="rgba(255,255,255,0.08)"/>
+  <text x="400" y="150" fill="#A6ADBB" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="12">Codex Soft Compute Blob</text>
+  <g transform="translate(406,160)">
+    <rect x="6" y="3" width="10" height="2" fill="#C1FBFF"/>
+    <rect x="4" y="5" width="14" height="7" fill="#73E4FF"/>
+    <rect x="5" y="4" width="2" height="1" fill="#A6F4FF"/>
+    <rect x="15" y="4" width="2" height="1" fill="#A6F4FF"/>
+    <rect x="8" y="7" width="2" height="2" fill="#08131A"/>
+    <rect x="12" y="7" width="2" height="2" fill="#08131A"/>
+    <rect x="5" y="12" width="2" height="2" fill="#73E4FF"/>
+    <rect x="8" y="12" width="2" height="4" fill="#73E4FF"/>
+    <rect x="12" y="12" width="2" height="4" fill="#73E4FF"/>
+    <rect x="15" y="12" width="2" height="2" fill="#73E4FF"/>
+  </g>
+  <text x="448" y="178" fill="#F2F4F8" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="13">22×20 px canonical asset</text>
+  <text x="448" y="196" fill="#A6ADBB" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="12">Use directly for implementation baseline</text>
+
+  <text x="36" y="236" fill="#DDE3EC" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="15">Review-scale reference</text>
+
+  <g transform="translate(70,246) scale(4.2)">
+    <rect x="4" y="3" width="14" height="9" fill="#D8898B"/>
+    <rect x="3" y="5" width="1" height="2" fill="#F3ABAD"/>
+    <rect x="18" y="5" width="1" height="2" fill="#F3ABAD"/>
+    <rect x="7" y="6" width="2" height="3" fill="#0D0909"/>
+    <rect x="13" y="6" width="2" height="3" fill="#0D0909"/>
+    <rect x="6" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="8.5" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="12.5" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+    <rect x="15" y="13" width="1.6" height="4" fill="#F3ABAD"/>
+  </g>
+  <text x="192" y="290" fill="#F2F4F8" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="13">Claude locked review reference</text>
+
+  <g transform="translate(410,246) scale(4.2)">
+    <rect x="6" y="3" width="10" height="2" fill="#C1FBFF"/>
+    <rect x="4" y="5" width="14" height="7" fill="#73E4FF"/>
+    <rect x="5" y="4" width="2" height="1" fill="#A6F4FF"/>
+    <rect x="15" y="4" width="2" height="1" fill="#A6F4FF"/>
+    <rect x="8" y="7" width="2" height="2" fill="#08131A"/>
+    <rect x="12" y="7" width="2" height="2" fill="#08131A"/>
+    <rect x="5" y="12" width="2" height="2" fill="#73E4FF"/>
+    <rect x="8" y="12" width="2" height="4" fill="#73E4FF"/>
+    <rect x="12" y="12" width="2" height="4" fill="#73E4FF"/>
+    <rect x="15" y="12" width="2" height="2" fill="#73E4FF"/>
+  </g>
+  <text x="530" y="290" fill="#F2F4F8" font-family="SF Pro Text, Helvetica, Arial, sans-serif" font-size="13">Codex locked review reference</text>
+</svg>

@@ -17,6 +17,27 @@ final class FixtureBundleLoaderTests: XCTestCase {
         XCTAssertEqual(FixtureScenario.allCases.count, 12)
     }
 
+    func testFixtureStoreEnumeratesOnlyScenariosPresentInBundleInCanonicalOrder() throws {
+        let bundle = try FixtureBundleLoader.load(from: try fixtureURL)
+        let filteredBundle = FixtureBundle(
+            version: bundle.version,
+            notes: bundle.notes,
+            shellStates: bundle.shellStates,
+            fixtures: [
+                FixtureScenario.claudeOffline.rawValue: try XCTUnwrap(
+                    bundle.fixtures[FixtureScenario.claudeOffline.rawValue]
+                ),
+                FixtureScenario.bothIdle.rawValue: try XCTUnwrap(
+                    bundle.fixtures[FixtureScenario.bothIdle.rawValue]
+                )
+            ]
+        )
+
+        let store = try FixtureStore(bundle: filteredBundle)
+
+        XCTAssertEqual(store.allScenarios, [.bothIdle, .claudeOffline])
+    }
+
     func testFixtureBundleLoadsAllRequiredScenarios() throws {
         let bundle = try FixtureBundleLoader.load(from: try fixtureURL)
 
@@ -24,6 +45,26 @@ final class FixtureBundleLoaderTests: XCTestCase {
 
         let expected = Set(FixtureScenario.allCases.map(\.rawValue))
         XCTAssertEqual(Set(bundle.fixtures.keys), expected)
+        XCTAssertEqual(
+            bundle.shellStates,
+            ["collapsed", "hoverExpanded", "pinnedExpanded", "collapsing"]
+        )
+    }
+
+    func testFixtureBundleRespectsAgentKindsAndRatioBounds() throws {
+        let bundle = try FixtureBundleLoader.load(from: try fixtureURL)
+
+        for fixture in bundle.fixtures.values {
+            XCTAssertEqual(fixture.codex.kind, .codex)
+            XCTAssertEqual(fixture.claude.kind, .claude)
+
+            XCTAssertTrue(
+                ratioValues(in: fixture.codex).allSatisfy { 0.0 ... 1.0 ~= $0 }
+            )
+            XCTAssertTrue(
+                ratioValues(in: fixture.claude).allSatisfy { 0.0 ... 1.0 ~= $0 }
+            )
+        }
     }
 
     func testFixtureStoreResolvesInitialScenario() throws {
@@ -63,5 +104,14 @@ final class FixtureBundleLoaderTests: XCTestCase {
                 .missingScenario(.bothIdle)
             )
         }
+    }
+
+    private func ratioValues(in state: AgentState) -> [Double] {
+        let quotaRatios = [
+            state.quota?.fiveHourRatio,
+            state.quota?.weeklyRatio
+        ]
+        let threadRatios = state.threads.compactMap(\.contextRatio)
+        return quotaRatios.compactMap { $0 } + threadRatios
     }
 }

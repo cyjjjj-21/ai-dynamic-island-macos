@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		4D99C0000000000000000001 /* AIIslandCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D99C0000000000000000011 /* AIIslandCore.framework */; };
+		4D99C0000000000000000002 /* AIIslandCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4D99C0000000000000000011 /* AIIslandCore.framework */; };
+		4D99C0000000000000000003 /* AIIslandCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 4D99C0000000000000000011 /* AIIslandCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -25,6 +27,13 @@
 			remoteGlobalIDString = 4D99C0000000000000000031;
 			remoteInfo = AIIslandCore;
 		};
+		4D99C0000000000000000053 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17AF2502D660944DD73025CF;
+			remoteInfo = AIIslandApp;
+		};
 		4D99C0000000000000000021 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AD6BC319F311915AC76FFB1E /* Project object */;
@@ -33,6 +42,20 @@
 			remoteInfo = AIIslandCore;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		4D99C0000000000000000046 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				4D99C0000000000000000003 /* AIIslandCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2141401CDCD22529D3D7683F /* AIIslandApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIIslandApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -144,6 +167,7 @@
 			buildConfigurationList = 64EF40BFF4735082CA922919 /* Build configuration list for PBXNativeTarget "AIIslandApp" */;
 			buildPhases = (
 				4D99C0000000000000000041 /* Frameworks */,
+				4D99C0000000000000000046 /* Embed Frameworks */,
 				EB5AF5A62B03C0192003E8A9 /* Sources */,
 				70B392B84D0E35D0AAABCDEF /* Resources */,
 			);
@@ -196,6 +220,7 @@
 			);
 			dependencies = (
 				4D99C0000000000000000052 /* PBXTargetDependency */,
+				4D99C0000000000000000054 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				5E276EE6C6842ED6D4D0B555 /* AIIslandAppTests */,
@@ -270,6 +295,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4D99C0000000000000000002 /* AIIslandCore.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -368,6 +394,11 @@
 			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
 			targetProxy = 697E90DEBFD46DF5C44397AE /* PBXContainerItemProxy */;
 		};
+		4D99C0000000000000000054 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17AF2502D660944DD73025CF /* AIIslandApp */;
+			targetProxy = 4D99C0000000000000000053 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
@@ -383,7 +414,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -402,7 +433,7 @@
 					"@loader_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp.uitests;
 				SDKROOT = macosx;
 				TEST_TARGET_NAME = AIIslandApp;
 			};
@@ -420,7 +451,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp;
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -493,13 +524,14 @@
 				CODE_SIGNING_ALLOWED = NO;
 				DEFINES_MODULE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_DYLIB_INSTALL_NAME = "@rpath/$(EXECUTABLE_PATH)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@loader_path/../Frameworks",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandcore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandcore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -520,7 +552,7 @@
 					"@loader_path/Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.uitests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp.uitests;
 				SDKROOT = macosx;
 				TEST_TARGET_NAME = AIIslandApp;
 			};
@@ -532,13 +564,14 @@
 				CODE_SIGNING_ALLOWED = NO;
 				DEFINES_MODULE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_DYLIB_INSTALL_NAME = "@rpath/$(EXECUTABLE_PATH)";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@loader_path/../Frameworks",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandcore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandcore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
@@ -548,6 +581,7 @@
 		D7F9C169CDF2011A5DFCFBB1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp.debug.dylib";
 				CODE_SIGNING_ALLOWED = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -556,9 +590,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
+					"@loader_path/../../../AIIslandApp.app/Contents/MacOS",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp.tests;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -621,6 +656,7 @@
 		EFB88FF852C4A9E2E6424F16 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				BUNDLE_LOADER = "$(BUILT_PRODUCTS_DIR)/AIIslandApp.app/Contents/MacOS/AIIslandApp.debug.dylib";
 				CODE_SIGNING_ALLOWED = NO;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -629,9 +665,10 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
+					"@loader_path/../../../AIIslandApp.app/Contents/MacOS",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.chenyuanjie.aiislandapp.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.aiislandapp.tests;
 				SDKROOT = macosx;
 			};
 			name = Debug;

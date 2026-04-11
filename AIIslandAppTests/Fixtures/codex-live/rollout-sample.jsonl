@@ -1,0 +1,6 @@
+{"timestamp":"2026-04-11T10:04:57Z","type":"session_meta","payload":{"id":"fixture-thread","cwd":"/workspace/repo-placeholder","agent_nickname":"Codex","agent_role":"worker","model_provider":"openai"}}
+{"timestamp":"2026-04-11T10:04:58Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4"}}
+{"timestamp":"2026-04-11T10:04:59Z","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-1","content":[{"type":"input_text","text":"继续向下推进 codex live monitor"}]}}
+{"timestamp":"2026-04-11T10:05:00Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+{"timestamp":"2026-04-11T10:05:01Z","type":"event_msg","payload":{"type":"exec_command_begin","turn_id":"turn-1","call_id":"call-1"}}
+{"timestamp":"2026-04-11T10:05:02Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":62000},"model_context_window":248000},"rate_limits":{"primary":{"used_percent":40.0},"secondary":{"used_percent":12.5}}}}

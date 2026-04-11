@@ -23,7 +23,7 @@ public final class FixtureStore {
     }
 
     public var allScenarios: [FixtureScenario] {
-        FixtureScenario.allCases
+        FixtureScenario.allCases.filter { bundle.fixtures[$0.rawValue] != nil }
     }
 
     public var codex: AgentState {
