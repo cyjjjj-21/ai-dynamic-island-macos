@@ -610,6 +610,22 @@ The first AppKit shell draft had two real interaction risks that were fixed befo
 - Goal:
   - avoid user confusion between "agent identity color" and "quota metric color" while improving notch fusion in default state.
 
+## UI Postmortem: Browser Typing Focus Was Stolen By Island Window
+
+- User-visible defect:
+  - while typing in browser, input focus could be interrupted and users saw cursor/focus being stolen.
+- Root cause:
+  - island panel was allowed to become key/main (`IslandPanel.canBecomeKey/canBecomeMain == true`)
+  - island click path used `makeKeyAndOrderFront`, which could promote the island as key window.
+- Missed QA step:
+  - no regression check existed for "overlay shell must never become key/main while other apps are typing targets".
+- Systemic correction:
+  - force panel to stay non-key/non-main
+  - replace click-time `makeKeyAndOrderFront` with non-activating `orderFront`
+  - add hostless unit test `IslandPanelFocusTests` to lock focus policy.
+- Prevention rule:
+  - all overlay/notch windows must remain non-key unless there is an explicit text-input feature requiring focus ownership.
+
 ## Next Recommended Steps
 
 1. Codex live data integration — quota, model, thread list, and context usage still need the same level of contract locking Claude now has.

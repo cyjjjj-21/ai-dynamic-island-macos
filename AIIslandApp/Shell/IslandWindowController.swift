@@ -119,14 +119,14 @@ final class IslandWindowController: NSWindowController {
 
         if canvasLayout.containsShellPoint(localPoint) {
             shellInteractionController.send(.clickIsland)
-            islandWindow.makeKeyAndOrderFront(nil)
+            islandWindow.orderFront(nil)
             hotzoneView.syncPointerState()
             return
         }
 
         if canvasLayout.expandedCardFrame.contains(localPoint) {
             shellInteractionController.send(.clickExpandedCard)
-            islandWindow.makeKeyAndOrderFront(nil)
+            islandWindow.orderFront(nil)
             hotzoneView.syncPointerState()
             return
         }
