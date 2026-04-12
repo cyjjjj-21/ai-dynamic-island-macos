@@ -39,27 +39,32 @@ struct QuotaStripView: View {
     @ViewBuilder
     private func quotaBand(title: String, ratioCopy: String, refreshCopy: String?, ratio: Double?, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 0) {
-                Text(title)
-                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(IslandPalette.primaryText.opacity(0.92))
+            // 使用overlay实现精准对齐：标题固定宽度，百分比左对齐，刷新时间右对齐
+            ZStack(alignment: .leading) {
+                // 底层：标题 + 百分比（左对齐）
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IslandPalette.primaryText.opacity(0.92))
+                        .frame(width: 46, alignment: .leading)
 
-                Spacer(minLength: 8)
+                    Text(ratioCopy)
+                        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(IslandPalette.secondaryText)
 
-                Text(ratioCopy)
-                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(IslandPalette.secondaryText)
-
-                if let refreshCopy = refreshCopy {
-                    Spacer(minLength: 12)
-
-                    Text(refreshCopy)
-                        .font(.system(size: 8, weight: .medium, design: .rounded))
-                        .foregroundStyle(IslandPalette.secondaryText.opacity(0.8))
-                        .lineLimit(1)
+                    Spacer()
                 }
 
-                Spacer(minLength: 0)
+                // 上层：刷新时间（右对齐），只在有值时显示
+                if let refreshCopy = refreshCopy {
+                    HStack {
+                        Spacer()
+                        Text(refreshCopy)
+                            .font(.system(size: 8, weight: .medium, design: .rounded))
+                            .foregroundStyle(IslandPalette.secondaryText.opacity(0.8))
+                            .lineLimit(1)
+                    }
+                }
             }
 
             GeometryReader { proxy in
