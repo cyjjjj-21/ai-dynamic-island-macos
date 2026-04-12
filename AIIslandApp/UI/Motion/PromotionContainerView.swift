@@ -109,7 +109,8 @@ private final class CoreAnimationShellEffectsNSView: NSView {
             width: IslandPalette.shellWidth,
             height: IslandPalette.shellHeight
         )
-        let glowActivation = min(max((p - 0.08) / 0.92, 0), 1)
+        // reveal层只在expand接近完成时显示 (p > 0.8)，避免hover初期出现ghost条
+        let glowActivation = p > 0.8 ? min(max((p - 0.8) / 0.2, 0), 1) : 0
         let maxRevealHeight: CGFloat = 10
         let revealHeight = maxRevealHeight * glowActivation
         // reveal层从壳顶部内部向下延伸，避免在壳外产生可见条
