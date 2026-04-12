@@ -111,7 +111,8 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         )
         let glowActivation = min(max((p - 0.08) / 0.92, 0), 1)
         let revealHeight = max(0, 10 * glowActivation)
-        let revealY = shellRect.maxY - revealHeight
+        // reveal层应该在壳内部，从顶部向下延伸（macOS坐标系y向下增长）
+        let revealY = shellRect.minY
         let leftRect = CGRect(
             x: shellRect.minX,
             y: revealY,
