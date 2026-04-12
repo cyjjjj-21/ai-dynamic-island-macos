@@ -387,7 +387,9 @@ final class CodexMonitor: ObservableObject {
         let quota: AgentQuota? = availability == .offline ? nil : AgentQuota(
             availability: latestQuotaSnapshot == nil ? .unavailable : .available,
             fiveHourRatio: latestQuotaSnapshot?.fiveHourRatio,
-            weeklyRatio: latestQuotaSnapshot?.weeklyRatio
+            weeklyRatio: latestQuotaSnapshot?.weeklyRatio,
+            fiveHourResetsAt: latestQuotaSnapshot?.fiveHourResetsAt,
+            weeklyResetsAt: latestQuotaSnapshot?.weeklyResetsAt
         )
 
         let newState = AgentState(
@@ -619,6 +621,8 @@ final class CodexMonitor: ObservableObject {
                 contextRatio: snapshot.contextRatio,
                 fiveHourRatio: snapshot.fiveHourRatio,
                 weeklyRatio: snapshot.weeklyRatio,
+                fiveHourResetsAt: snapshot.fiveHourResetsAt,
+                weeklyResetsAt: snapshot.weeklyResetsAt,
                 state: .idle,
                 updatedAt: snapshot.updatedAt,
                 trustLevel: snapshot.trustLevel,
@@ -662,6 +666,8 @@ final class CodexMonitor: ObservableObject {
             contextRatio: snapshot.contextRatio,
             fiveHourRatio: snapshot.fiveHourRatio,
             weeklyRatio: snapshot.weeklyRatio,
+            fiveHourResetsAt: snapshot.fiveHourResetsAt,
+            weeklyResetsAt: snapshot.weeklyResetsAt,
             state: snapshot.state,
             updatedAt: snapshot.updatedAt,
             trustLevel: snapshot.trustLevel,

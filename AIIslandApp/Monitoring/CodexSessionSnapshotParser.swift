@@ -15,6 +15,8 @@ struct CodexSessionSnapshot: Equatable {
     let contextRatio: Double?
     let fiveHourRatio: Double?
     let weeklyRatio: Double?
+    let fiveHourResetsAt: Date?
+    let weeklyResetsAt: Date?
     let state: AgentGlobalState
     let updatedAt: Date?
     let trustLevel: CodexSnapshotTrustLevel
@@ -43,6 +45,8 @@ enum CodexSessionSnapshotParser {
         var contextRatio: Double?
         var fiveHourRatio: Double?
         var weeklyRatio: Double?
+        var fiveHourResetsAt: Date?
+        var weeklyResetsAt: Date?
 
         var hasStructuredTokenSignal = false
         var hasStructuredActivitySignal = false
@@ -148,10 +152,12 @@ enum CodexSessionSnapshotParser {
                     }
 
                     if let rateLimits = payload["rate_limits"] as? [String: Any] {
-                        let primary = (rateLimits["primary"] as? [String: Any])?["used_percent"]
-                        let secondary = (rateLimits["secondary"] as? [String: Any])?["used_percent"]
-                        fiveHourRatio = number(from: primary).map(remainingRatio(fromUsedPercent:))
-                        weeklyRatio = number(from: secondary).map(remainingRatio(fromUsedPercent:))
+                        let primary = rateLimits["primary"] as? [String: Any]
+                        let secondary = rateLimits["secondary"] as? [String: Any]
+                        fiveHourRatio = number(from: primary?["used_percent"]).map(remainingRatio(fromUsedPercent:))
+                        weeklyRatio = number(from: secondary?["used_percent"]).map(remainingRatio(fromUsedPercent:))
+                        fiveHourResetsAt = parseDate(primary?["resets_at"], context: &dateContext)
+                        weeklyResetsAt = parseDate(secondary?["resets_at"], context: &dateContext)
                     }
                 case "agent_message":
                     hasStructuredActivitySignal = true
@@ -207,6 +213,8 @@ enum CodexSessionSnapshotParser {
             contextRatio: contextRatio,
             fiveHourRatio: fiveHourRatio,
             weeklyRatio: weeklyRatio,
+            fiveHourResetsAt: fiveHourResetsAt,
+            weeklyResetsAt: weeklyResetsAt,
             state: resolvedState,
             updatedAt: latestTimestamp,
             trustLevel: trustLevel,
@@ -224,6 +232,8 @@ enum CodexSessionSnapshotParser {
             contextRatio: nil,
             fiveHourRatio: nil,
             weeklyRatio: nil,
+            fiveHourResetsAt: nil,
+            weeklyResetsAt: nil,
             state: .idle,
             updatedAt: indexedThread.updatedAt,
             trustLevel: .recentIndexFallback,
@@ -243,6 +253,8 @@ enum CodexSessionSnapshotParser {
             contextRatio: snapshot.contextRatio,
             fiveHourRatio: snapshot.fiveHourRatio,
             weeklyRatio: snapshot.weeklyRatio,
+            fiveHourResetsAt: snapshot.fiveHourResetsAt,
+            weeklyResetsAt: snapshot.weeklyResetsAt,
             state: snapshot.state,
             updatedAt: updatedAt ?? snapshot.updatedAt,
             trustLevel: snapshot.trustLevel,

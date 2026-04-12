@@ -65,6 +65,8 @@ struct QuotaStripPresentation: Equatable, Sendable {
     let availabilityCopy: String?
     let fiveHourRatio: Double?
     let weeklyRatio: Double?
+    let fiveHourResetsAt: Date?
+    let weeklyResetsAt: Date?
 
     var fiveHourCopy: String {
         FallbackRenderingRules.percentageCopy(for: fiveHourRatio)
@@ -73,6 +75,40 @@ struct QuotaStripPresentation: Equatable, Sendable {
     var weeklyCopy: String {
         FallbackRenderingRules.percentageCopy(for: weeklyRatio)
     }
+
+    var fiveHourRefreshCopy: String? {
+        guard let resetsAt = fiveHourResetsAt else { return nil }
+        return formatCountdown(until: resetsAt)
+    }
+
+    var weeklyRefreshCopy: String? {
+        guard let resetsAt = weeklyResetsAt else { return nil }
+        return formatDateTime(resetsAt)
+    }
+}
+
+private func formatCountdown(until date: Date) -> String {
+    let now = Date()
+    let interval = date.timeIntervalSince(now)
+    guard interval > 0 else { return "即将刷新" }
+
+    let hours = Int(interval) / 3600
+    let minutes = (Int(interval) % 3600) / 60
+
+    if hours > 0 {
+        return "\(hours)小时\(minutes)分钟后刷新"
+    } else if minutes > 0 {
+        return "\(minutes)分钟后刷新"
+    } else {
+        return "即将刷新"
+    }
+}
+
+private func formatDateTime(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.dateFormat = "M月d日HH时mm分刷新"
+    return formatter.string(from: date)
 }
 
 enum FallbackRenderingRules {
@@ -127,7 +163,9 @@ enum FallbackRenderingRules {
         return QuotaStripPresentation(
             availabilityCopy: quota?.availability == .unavailable ? "Quota unavailable" : nil,
             fiveHourRatio: quota?.fiveHourRatio,
-            weeklyRatio: quota?.weeklyRatio
+            weeklyRatio: quota?.weeklyRatio,
+            fiveHourResetsAt: quota?.fiveHourResetsAt,
+            weeklyResetsAt: quota?.weeklyResetsAt
         )
     }
 

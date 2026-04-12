@@ -19,6 +19,7 @@ struct QuotaStripView: View {
                 quotaBand(
                     title: "5h",
                     ratioCopy: presentation.fiveHourCopy,
+                    refreshCopy: presentation.fiveHourRefreshCopy,
                     ratio: presentation.fiveHourRatio,
                     tint: IslandPalette.quotaFiveHourTint
                 )
@@ -26,6 +27,7 @@ struct QuotaStripView: View {
                 quotaBand(
                     title: "Weekly",
                     ratioCopy: presentation.weeklyCopy,
+                    refreshCopy: presentation.weeklyRefreshCopy,
                     ratio: presentation.weeklyRatio,
                     tint: IslandPalette.quotaWeeklyTint
                 )
@@ -35,18 +37,29 @@ struct QuotaStripView: View {
     }
 
     @ViewBuilder
-    private func quotaBand(title: String, ratioCopy: String, ratio: Double?, tint: Color) -> some View {
+    private func quotaBand(title: String, ratioCopy: String, refreshCopy: String?, ratio: Double?, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 Text(title)
                     .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(IslandPalette.primaryText.opacity(0.92))
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
 
                 Text(ratioCopy)
                     .font(.system(size: 8.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(IslandPalette.secondaryText)
+
+                if let refreshCopy = refreshCopy {
+                    Spacer(minLength: 12)
+
+                    Text(refreshCopy)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundStyle(IslandPalette.secondaryText.opacity(0.8))
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 0)
             }
 
             GeometryReader { proxy in

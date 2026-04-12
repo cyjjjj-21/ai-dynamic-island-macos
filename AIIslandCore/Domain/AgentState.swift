@@ -50,15 +50,21 @@ public struct AgentQuota: Codable, Equatable, Sendable {
     public let availability: AgentQuotaAvailability?
     public let fiveHourRatio: Double?
     public let weeklyRatio: Double?
+    public let fiveHourResetsAt: Date?
+    public let weeklyResetsAt: Date?
 
     public init(
         availability: AgentQuotaAvailability?,
         fiveHourRatio: Double?,
-        weeklyRatio: Double?
+        weeklyRatio: Double?,
+        fiveHourResetsAt: Date? = nil,
+        weeklyResetsAt: Date? = nil
     ) {
         self.availability = availability
         self.fiveHourRatio = fiveHourRatio
         self.weeklyRatio = weeklyRatio
+        self.fiveHourResetsAt = fiveHourResetsAt
+        self.weeklyResetsAt = weeklyResetsAt
     }
 }
 
