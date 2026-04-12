@@ -641,3 +641,34 @@ The first AppKit shell draft had two real interaction risks that were fixed befo
 - `Claude` displays real backend third-party model names.
 - `Codex` quota stays only in the Codex section header.
 - Motion must feel like a smooth material promotion, not a generic popover animation.
+
+## UI Postmortem: Two Horizontal "Dark Lines" In Default State
+
+- User-visible defect:
+  - users could see two thin horizontal lines on screen/screenshot even when shell was not expanded.
+- Root cause:
+  - `CoreAnimationShellEffectsNSView` left/right reveal layers had non-zero baseline opacity when `progress == 0`:
+    - `0.10 + (0.46 * p) + resonanceBoost`
+  - this made the reveal glow permanently visible as two idle scanline-like bars.
+- Missed QA step:
+  - no assertion existed for "rest state (`p=0`) must render zero reveal opacity".
+- Systemic correction:
+  - added a gated `glowActivation` derived from progress (`(p - 0.08)/0.92`, clamped to `0...1`)
+  - changed reveal and bridge opacities to multiply by `glowActivation`, so rest state is guaranteed `0`.
+- Prevention rule:
+  - all optional CA accent layers must use an explicit activation gate with a tested zero-output rest state.
+
+## UI Postmortem: Expanded-State Glow Rendered At Bottom Of Screen
+
+- User-visible defect:
+  - during expansion, two blurred glow bars and a center smear appeared near the lower part of the desktop instead of under the top shell.
+- Root cause:
+  - CA overlay geometry was computed with `shellY = 0`, which maps to bottom-origin coordinates in the AppKit layer tree.
+  - SwiftUI surface is top-aligned, so CA effects became vertically inverted relative to the shell/card.
+- Missed QA step:
+  - no explicit check that CA overlay anchor and SwiftUI anchor use the same vertical origin.
+- Systemic correction:
+  - changed CA shell anchor to top placement via `shellY = bounds.height - shellHeight`.
+  - retained progress gating so idle state stays fully clean.
+- Prevention rule:
+  - for mixed SwiftUI + AppKit/CA surfaces, assert coordinate-origin alignment before tuning opacity/timing.

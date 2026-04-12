@@ -102,14 +102,15 @@ private final class CoreAnimationShellEffectsNSView: NSView {
     ) {
         let p = min(max(progress, 0), 1)
         let shellX = (IslandPalette.canvasWidth - IslandPalette.shellWidth) / 2
-        let shellY: CGFloat = 0
+        let shellY = max(0, bounds.height - IslandPalette.shellHeight)
         let shellRect = CGRect(
             x: shellX,
             y: shellY,
             width: IslandPalette.shellWidth,
             height: IslandPalette.shellHeight
         )
-        let revealHeight = max(2, 10 * p)
+        let glowActivation = min(max((p - 0.08) / 0.92, 0), 1)
+        let revealHeight = max(0, 10 * glowActivation)
         let revealY = shellRect.maxY - revealHeight
         let leftRect = CGRect(
             x: shellRect.minX,
@@ -145,16 +146,16 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         haloLayer.opacity = Float(0.16 * p)
 
         leftRevealLayer.frame = leftRect
-        leftRevealLayer.opacity = Float((0.10 + (0.46 * p)) + resonance.leftBoost)
+        leftRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.leftBoost * glowActivation))
         leftRevealLayer.cornerRadius = revealHeight / 2
 
         rightRevealLayer.frame = rightRect
-        rightRevealLayer.opacity = Float((0.10 + (0.46 * p)) + resonance.rightBoost)
+        rightRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.rightBoost * glowActivation))
         rightRevealLayer.cornerRadius = revealHeight / 2
 
         bridgeGlowLayer.frame = bridgeRect
         bridgeGlowLayer.cornerRadius = bridgeRect.height / 2
-        bridgeGlowLayer.opacity = Float((0.05 + (0.24 * p)) * resonance.bridgeAlpha)
+        bridgeGlowLayer.opacity = Float((0.22 * glowActivation) * resonance.bridgeAlpha)
 
         CATransaction.commit()
     }
