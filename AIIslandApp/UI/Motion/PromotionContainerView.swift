@@ -112,8 +112,8 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         let glowActivation = min(max((p - 0.08) / 0.92, 0), 1)
         let maxRevealHeight: CGFloat = 10
         let revealHeight = maxRevealHeight * glowActivation
-        // reveal层始终从壳顶部上方固定位置向下延伸，collapsed时高度为0完全隐藏
-        let revealY = shellRect.minY - maxRevealHeight
+        // reveal层从壳顶部内部向下延伸，避免在壳外产生可见条
+        let revealY = shellRect.minY
         let leftRect = CGRect(
             x: shellRect.minX,
             y: revealY,

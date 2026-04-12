@@ -51,12 +51,13 @@ private struct ShellBandChrome: View {
     var body: some View {
         ShellBandShape()
             .fill(IslandPalette.shellFill, style: FillStyle(eoFill: true))
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: IslandPalette.shellHeight / 2,
-                    style: .continuous
-                )
-                .stroke(IslandPalette.shellStroke, lineWidth: 1)
+            .overlay(alignment: .top) {
+                PhysicalNotchCutoutShape()
+                    .stroke(IslandPalette.shellStroke, lineWidth: 1)
+                    .frame(
+                        width: IslandPalette.physicalNotchWidth,
+                        height: IslandPalette.physicalNotchHeight
+                    )
             }
             .overlay(alignment: .top) {
                 PhysicalNotchCutoutShape()
