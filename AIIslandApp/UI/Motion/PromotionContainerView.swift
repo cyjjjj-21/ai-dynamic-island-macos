@@ -149,11 +149,11 @@ private final class CoreAnimationShellEffectsNSView: NSView {
 
         leftRevealLayer.frame = leftRect
         leftRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.leftBoost * glowActivation))
-        leftRevealLayer.cornerRadius = revealHeight / 2
+        leftRevealLayer.cornerRadius = revealHeight > 0 ? IslandPalette.shellHeight / 2 : 0
 
         rightRevealLayer.frame = rightRect
         rightRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.rightBoost * glowActivation))
-        rightRevealLayer.cornerRadius = revealHeight / 2
+        rightRevealLayer.cornerRadius = revealHeight > 0 ? IslandPalette.shellHeight / 2 : 0
 
         bridgeGlowLayer.frame = bridgeRect
         bridgeGlowLayer.cornerRadius = bridgeRect.height / 2
