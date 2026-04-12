@@ -17,7 +17,9 @@ struct IslandRootView: View {
         PromotionContainerView(
             coordinator: motionCoordinator,
             codex: codexMonitor.codexState,
-            claude: claudeMonitor.claudeState
+            claude: claudeMonitor.claudeState,
+            codexDiagnostics: codexMonitor.diagnostics,
+            claudeDiagnostics: claudeMonitor.diagnostics
         )
             .frame(width: IslandPalette.canvasWidth, height: IslandPalette.canvasHeight, alignment: .top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

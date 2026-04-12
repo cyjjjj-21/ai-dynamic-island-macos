@@ -8,6 +8,7 @@ struct CodexIndexedThread: Equatable {
 
 enum CodexSessionIndexParser {
     static func parse(_ text: String) -> [CodexIndexedThread] {
+        var dateContext = DateParsingContext()
         var newestByThreadID: [String: CodexIndexedThread] = [:]
 
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
@@ -16,7 +17,8 @@ enum CodexSessionIndexParser {
                 let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                 let threadID = normalizedString(json["id"]),
                 let updatedAt = parseDate(
-                    json["updated_at"] ?? json["updatedAt"] ?? json["timestamp"]
+                    json["updated_at"] ?? json["updatedAt"] ?? json["timestamp"],
+                    context: &dateContext
                 )
             else {
                 continue
@@ -54,7 +56,22 @@ enum CodexSessionIndexParser {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    private static func parseDate(_ value: Any?) -> Date? {
+    private struct DateParsingContext {
+        let fractional: ISO8601DateFormatter
+        let base: ISO8601DateFormatter
+
+        init() {
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.fractional = fractional
+
+            let base = ISO8601DateFormatter()
+            base.formatOptions = [.withInternetDateTime]
+            self.base = base
+        }
+    }
+
+    private static func parseDate(_ value: Any?, context: inout DateParsingContext) -> Date? {
         guard let value else {
             return nil
         }
@@ -88,15 +105,11 @@ enum CodexSessionIndexParser {
                     : Date(timeIntervalSince1970: unix)
             }
 
-            let fractionalFormatter = ISO8601DateFormatter()
-            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractionalFormatter.date(from: trimmed) {
+            if let date = context.fractional.date(from: trimmed) {
                 return date
             }
 
-            let baseFormatter = ISO8601DateFormatter()
-            baseFormatter.formatOptions = [.withInternetDateTime]
-            if let date = baseFormatter.date(from: trimmed) {
+            if let date = context.base.date(from: trimmed) {
                 return date
             }
         }

@@ -20,14 +20,14 @@ struct QuotaStripView: View {
                     title: "5h",
                     ratioCopy: presentation.fiveHourCopy,
                     ratio: presentation.fiveHourRatio,
-                    tint: IslandPalette.codexTint
+                    tint: IslandPalette.quotaFiveHourTint
                 )
 
                 quotaBand(
                     title: "Weekly",
                     ratioCopy: presentation.weeklyCopy,
                     ratio: presentation.weeklyRatio,
-                    tint: IslandPalette.claudeTint
+                    tint: IslandPalette.quotaWeeklyTint
                 )
             }
         }

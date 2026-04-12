@@ -6,7 +6,7 @@ import XCTest
 final class CodexSessionSnapshotParserTests: XCTestCase {
     func testParseSnapshotExtractsModelContextAndQuotaFromTokenCount() {
         let jsonl = """
-        {"timestamp":"2026-04-11T01:57:03.186Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":46618},"model_context_window":258400},"rate_limits":{"primary":{"used_percent":50.0},"secondary":{"used_percent":8.0}}}}
+        {"timestamp":"2026-04-11T01:57:03.186Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":46618},"model_context_window":258400},"rate_limits":{"primary":{"used_percent":35.0},"secondary":{"used_percent":8.0}}}}
         {"timestamp":"2026-04-11T01:57:03.221Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4"}}
         """
 
@@ -18,8 +18,8 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
 
         XCTAssertEqual(snapshot.modelLabel, "gpt-5.4")
         XCTAssertEqual(try XCTUnwrap(snapshot.contextRatio), 46618.0 / 258400.0, accuracy: 0.0001)
-        XCTAssertEqual(try XCTUnwrap(snapshot.fiveHourRatio), 0.50, accuracy: 0.0001)
-        XCTAssertEqual(try XCTUnwrap(snapshot.weeklyRatio), 0.08, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(snapshot.fiveHourRatio), 0.65, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(snapshot.weeklyRatio), 0.92, accuracy: 0.0001)
         XCTAssertEqual(snapshot.trustLevel, .eventDerived)
     }
 

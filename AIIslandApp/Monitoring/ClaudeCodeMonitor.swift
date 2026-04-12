@@ -12,6 +12,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         threads: [],
         quota: nil
     )
+    @Published private(set) var diagnostics: AgentMonitorDiagnostics
 
     private var pollTimer: Timer?
     private var cachedSessionId: String?
@@ -21,68 +22,130 @@ final class ClaudeCodeMonitor: ObservableObject {
     private let projectsDirPath: String
     private let temporaryDirectoryPath: String
     private let processAliveChecker: (Int32) -> Bool
-    private static let activeStateWindow: TimeInterval = 2 * 60
-    private static let coolingIdleWindow: TimeInterval = 8 * 60
-    private static let visibleIdleWindow: TimeInterval = 15 * 60
-    private static let liveSignalWindow: TimeInterval = 30 * 60
+    private let freshnessPolicy: MonitorFreshnessPolicy
+    private let keepAlivePollInterval: TimeInterval
+    private let eventDebounceInterval: TimeInterval
+    private let injectedSignalSource: RealtimeSignalSource?
+
+    private var signalSource: RealtimeSignalSource?
+    private var pendingRefreshWorkItem: DispatchWorkItem?
+    private var lastRefreshAt: Date = .distantPast
+    private var lastKnownModels: [String: CachedModel] = [:]
 
     private static let claudeDir: String = {
         NSHomeDirectory() + "/.claude"
     }()
 
-    private static let sessionsDir: String = {
-        claudeDir + "/sessions"
-    }()
+    private static let transcriptTailBytes: UInt64 = 262_144
 
-    private static let projectsDir: String = {
-        claudeDir + "/projects"
-    }()
-
-    private static let transcriptTailBytes: UInt64 = 262144
+    private struct CachedModel {
+        let label: String
+        let updatedAt: Date
+    }
 
     init(
         fileManager: FileManager = .default,
         claudeDirPath: String = ClaudeCodeMonitor.claudeDir,
         temporaryDirectoryPath: String = NSTemporaryDirectory(),
-        processAliveChecker: @escaping (Int32) -> Bool = { kill($0, 0) == 0 }
+        processAliveChecker: @escaping (Int32) -> Bool = { kill($0, 0) == 0 },
+        freshnessPolicy: MonitorFreshnessPolicy = .v02Smooth,
+        keepAlivePollInterval: TimeInterval = 2.0,
+        eventDebounceInterval: TimeInterval = 0.15,
+        signalSource: RealtimeSignalSource? = nil
     ) {
         self.fileManager = fileManager
         sessionsDirPath = claudeDirPath + "/sessions"
         projectsDirPath = claudeDirPath + "/projects"
         self.temporaryDirectoryPath = temporaryDirectoryPath
         self.processAliveChecker = processAliveChecker
+        self.freshnessPolicy = freshnessPolicy
+        self.keepAlivePollInterval = keepAlivePollInterval
+        self.eventDebounceInterval = eventDebounceInterval
+        injectedSignalSource = signalSource
+        diagnostics = .empty(
+            kind: .claude,
+            freshnessPolicy: freshnessPolicy,
+            triggerMode: "event+poll"
+        )
     }
 
     func start() {
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        configureSignalSourceIfNeeded()
+
+        pollTimer = Timer.scheduledTimer(withTimeInterval: keepAlivePollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refresh()
+                self?.scheduleRefresh(trigger: "poll")
             }
         }
-        refresh()
+        scheduleRefresh(trigger: "startup")
     }
 
     func stop() {
+        pendingRefreshWorkItem?.cancel()
+        pendingRefreshWorkItem = nil
+
         pollTimer?.invalidate()
         pollTimer = nil
+
+        signalSource?.stop()
+        signalSource = nil
     }
 
     nonisolated deinit {
-        // Timer invalidation handled by stop() or natural deallocation
+        // Timer and signal source are cleaned up from stop().
     }
 
     func refreshNow() {
-        refresh()
+        refresh(trigger: "manual")
     }
 
-    private func refresh() {
+    private func scheduleRefresh(trigger: String) {
+        let now = Date()
+        let age = now.timeIntervalSince(lastRefreshAt)
+        if age >= eventDebounceInterval {
+            refresh(trigger: trigger)
+            return
+        }
+
+        pendingRefreshWorkItem?.cancel()
+        let delay = max(0.01, eventDebounceInterval - age)
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.refresh(trigger: trigger)
+            }
+        }
+        pendingRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func configureSignalSourceIfNeeded() {
+        if signalSource != nil {
+            return
+        }
+
+        let source = injectedSignalSource ?? VnodeRealtimeSignalSource(paths: baseWatchedPaths())
+        source.onSignal = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.scheduleRefresh(trigger: "event")
+            }
+        }
+        source.start()
+        signalSource = source
+    }
+
+    private func refresh(trigger: String) {
+        pendingRefreshWorkItem?.cancel()
+        pendingRefreshWorkItem = nil
+        lastRefreshAt = Date()
+        let now = Date()
+
         guard let session = findActiveSession() else {
-            transitionTo(offline: true)
+            transitionToOffline(now: now, trigger: trigger)
             return
         }
 
         guard isProcessAlive(pid: session.pid) else {
-            transitionTo(offline: true)
+            transitionToOffline(now: now, trigger: trigger)
             return
         }
 
@@ -95,22 +158,35 @@ final class ClaudeCodeMonitor: ObservableObject {
             cwd: session.cwd
         )
 
-        // Read context ratio from the statusline bridge file. Live activity
-        // state should follow Claude's session metadata instead of custom
-        // statusline bridge inference.
         let bridge = readBridgeFile(sessionId: session.sessionId)
         let rawState = ClaudeCodeSnapshotParser.resolveGlobalState(
             activity: session.activity,
             transcript: transcript
         )
-        let now = Date()
+
         let lastSignalAt = [session.observedAt, transcriptUpdatedAt, bridge?.observedAt]
             .compactMap { $0 }
             .max()
-        let stage = decayStage(lastSignalAt: lastSignalAt, now: now)
+        let stage = freshnessPolicy.stage(lastSignalAt: lastSignalAt, now: now)
         let availability: AgentAvailability = stage == .expired ? .statusUnavailable : .available
         let state = decayState(rawState, stage: stage)
         let contextRatio = bridge?.contextRatio
+
+        signalSource?.updateWatchedPaths(
+            watchedPaths(
+                sessionPath: session.filePath,
+                transcriptPath: jsonlPath,
+                bridgePath: bridge?.filePath
+            )
+        )
+
+        let resolvedModelLabel = resolveModelLabel(
+            sessionId: session.sessionId,
+            rawModel: ClaudeCodeSnapshotParser.resolveModelLabel(transcript: transcript),
+            lastSignalAt: lastSignalAt,
+            now: now
+        )
+
         let shouldRenderThread = ClaudeCodeSnapshotParser.shouldRenderThread(
             activity: session.activity,
             transcript: transcript,
@@ -126,7 +202,7 @@ final class ClaudeCodeMonitor: ObservableObject {
                 AgentThread(
                     id: session.sessionId,
                     taskLabel: taskLabel,
-                    modelLabel: ClaudeCodeSnapshotParser.resolveModelLabel(transcript: transcript),
+                    modelLabel: resolvedModelLabel,
                     contextRatio: contextRatio,
                     state: state
                 )
@@ -137,10 +213,29 @@ final class ClaudeCodeMonitor: ObservableObject {
         if newState != claudeState {
             claudeState = newState
         }
+
+        diagnostics = AgentMonitorDiagnostics(
+            kind: .claude,
+            refreshedAt: now,
+            freshnessPolicy: freshnessPolicy,
+            triggerMode: "event+poll/\(trigger)",
+            threads: [
+                MonitorThreadDiagnostics(
+                    id: session.sessionId,
+                    lastSignalAt: lastSignalAt,
+                    stage: stage,
+                    sourceHits: sourceHits(
+                        hasSessionMeta: true,
+                        hasTranscript: transcriptUpdatedAt != nil,
+                        hasBridge: bridge != nil,
+                        hasModel: !resolvedModelLabel.isEmpty
+                    )
+                )
+            ]
+        )
     }
 
-    private func transitionTo(offline: Bool) {
-        guard offline else { return }
+    private func transitionToOffline(now: Date, trigger: String) {
         let offlineState = AgentState(
             kind: .claude,
             online: false,
@@ -154,9 +249,14 @@ final class ClaudeCodeMonitor: ObservableObject {
             cachedSessionId = nil
             cachedJsonlPath = nil
         }
+        diagnostics = AgentMonitorDiagnostics(
+            kind: .claude,
+            refreshedAt: now,
+            freshnessPolicy: freshnessPolicy,
+            triggerMode: "event+poll/\(trigger)",
+            threads: []
+        )
     }
-
-    // MARK: - Session Discovery
 
     private struct SessionInfo {
         let pid: Int32
@@ -164,6 +264,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         let cwd: String
         let activity: ClaudeCodeSessionActivity?
         let observedAt: Date
+        let filePath: String
     }
 
     private func findActiveSession() -> SessionInfo? {
@@ -205,17 +306,14 @@ final class ClaudeCodeMonitor: ObservableObject {
             sessionId: sessionId,
             cwd: cwd,
             activity: ClaudeCodeSnapshotParser.parseSessionActivity(from: data),
-            observedAt: bestModDate
+            observedAt: bestModDate,
+            filePath: filePath
         )
     }
-
-    // MARK: - Process Check
 
     private func isProcessAlive(pid: Int32) -> Bool {
         processAliveChecker(pid)
     }
-
-    // MARK: - JSONL Path Resolution
 
     private func resolveJsonlPath(sessionId: String, cwd: String) -> String? {
         if let cached = cachedJsonlPath, cachedSessionId == sessionId {
@@ -230,7 +328,6 @@ final class ClaudeCodeMonitor: ObservableObject {
             return directPath
         }
 
-        // Fallback: search all project directories
         guard let projectDirs = try? fileManager.contentsOfDirectory(atPath: projectsDirPath) else {
             return nil
         }
@@ -248,12 +345,10 @@ final class ClaudeCodeMonitor: ObservableObject {
     }
 
     /// Encode a cwd path the same way Claude Code does:
-    /// "/Users/foo/bar" → "-Users-foo-bar"
+    /// "/Users/foo/bar" -> "-Users-foo-bar"
     private func encodeCwd(_ cwd: String) -> String {
         cwd.replacingOccurrences(of: "/", with: "-")
     }
-
-    // MARK: - JSONL Parsing
 
     private func parseTranscriptTail(path: String?) -> ClaudeCodeTranscriptSnapshot {
         guard let path,
@@ -268,9 +363,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         }
         defer { try? handle.close() }
 
-        guard let fileSize = try? handle.seekToEnd(),
-              fileSize > 0
-        else {
+        guard let fileSize = try? handle.seekToEnd(), fileSize > 0 else {
             return ClaudeCodeTranscriptSnapshot(
                 fallbackState: .idle,
                 modelLabel: nil,
@@ -281,16 +374,9 @@ final class ClaudeCodeMonitor: ObservableObject {
 
         let offset = fileSize > Self.transcriptTailBytes ? fileSize - Self.transcriptTailBytes : 0
         try? handle.seek(toOffset: offset)
-        guard let data = try? handle.readToEnd() else {
-            return ClaudeCodeTranscriptSnapshot(
-                fallbackState: .idle,
-                modelLabel: nil,
-                taskSummary: nil,
-                hasInProgressToolUse: false
-            )
-        }
-
-        guard let text = String(data: data, encoding: .utf8) else {
+        guard let data = try? handle.readToEnd(),
+              let text = String(data: data, encoding: .utf8)
+        else {
             return ClaudeCodeTranscriptSnapshot(
                 fallbackState: .idle,
                 modelLabel: nil,
@@ -309,20 +395,17 @@ final class ClaudeCodeMonitor: ObservableObject {
         return ClaudeCodeSnapshotParser.parseTranscriptTail(normalizedTail)
     }
 
-    // MARK: - Bridge File
-
     private struct BridgeData {
         let contextRatio: Double?
         let observedAt: Date?
+        let filePath: String
     }
 
-    /// Read context ratio from the bridge file written by the statusline
-    /// command. We intentionally ignore custom `agent_state` fields there,
-    /// because Claude's live activity should come from session metadata.
     private func readBridgeFile(sessionId: String) -> BridgeData? {
         let bridgePath = URL(fileURLWithPath: temporaryDirectoryPath, isDirectory: true)
             .appendingPathComponent("claude-ctx-" + sessionId + ".json")
             .path
+
         guard let data = fileManager.contents(atPath: bridgePath),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else {
@@ -332,42 +415,11 @@ final class ClaudeCodeMonitor: ObservableObject {
         let observedAt = fileModificationDate(atPath: bridgePath)
         let contextRatio: Double? = (json["used_pct"] as? Int)
             .map { min(Double($0) / 100.0, 1.0) }
-        return BridgeData(contextRatio: contextRatio, observedAt: observedAt)
+
+        return BridgeData(contextRatio: contextRatio, observedAt: observedAt, filePath: bridgePath)
     }
 
-    private enum ActivityDecayStage {
-        case live
-        case cooling
-        case recentIdle
-        case staleHidden
-        case expired
-    }
-
-    private func decayStage(lastSignalAt: Date?, now: Date) -> ActivityDecayStage {
-        guard let lastSignalAt else {
-            return .expired
-        }
-
-        let age = max(0, now.timeIntervalSince(lastSignalAt))
-        if age <= Self.activeStateWindow {
-            return .live
-        }
-        if age <= Self.coolingIdleWindow {
-            return .cooling
-        }
-        if age <= Self.visibleIdleWindow {
-            return .recentIdle
-        }
-        if age <= Self.liveSignalWindow {
-            return .staleHidden
-        }
-        return .expired
-    }
-
-    private func decayState(
-        _ rawState: AgentGlobalState,
-        stage: ActivityDecayStage
-    ) -> AgentGlobalState {
+    private func decayState(_ rawState: AgentGlobalState, stage: MonitorFreshnessStage) -> AgentGlobalState {
         switch stage {
         case .live:
             return rawState
@@ -376,13 +428,77 @@ final class ClaudeCodeMonitor: ObservableObject {
         }
     }
 
-    private func shouldRenderThread(for stage: ActivityDecayStage) -> Bool {
+    private func shouldRenderThread(for stage: MonitorFreshnessStage) -> Bool {
         switch stage {
         case .live, .cooling, .recentIdle:
             return true
         case .staleHidden, .expired:
             return false
         }
+    }
+
+    private func resolveModelLabel(
+        sessionId: String,
+        rawModel: String,
+        lastSignalAt: Date?,
+        now: Date
+    ) -> String {
+        let cacheWindow = freshnessPolicy.visibleIdleWindow
+        if !rawModel.isEmpty {
+            lastKnownModels[sessionId] = CachedModel(label: rawModel, updatedAt: lastSignalAt ?? now)
+            return rawModel
+        }
+
+        guard let cached = lastKnownModels[sessionId] else {
+            return rawModel
+        }
+
+        if now.timeIntervalSince(cached.updatedAt) > cacheWindow {
+            lastKnownModels.removeValue(forKey: sessionId)
+            return rawModel
+        }
+
+        return cached.label
+    }
+
+    private func baseWatchedPaths() -> [String] {
+        [
+            sessionsDirPath,
+            projectsDirPath,
+            temporaryDirectoryPath,
+        ]
+    }
+
+    private func watchedPaths(
+        sessionPath: String,
+        transcriptPath: String?,
+        bridgePath: String?
+    ) -> [String] {
+        var paths = baseWatchedPaths()
+        paths.append(sessionPath)
+        if let transcriptPath {
+            paths.append(transcriptPath)
+            paths.append((transcriptPath as NSString).deletingLastPathComponent)
+        }
+        if let bridgePath {
+            paths.append(bridgePath)
+        }
+        return paths
+    }
+
+    private func sourceHits(
+        hasSessionMeta: Bool,
+        hasTranscript: Bool,
+        hasBridge: Bool,
+        hasModel: Bool
+    ) -> [String] {
+        var hits: [String] = []
+        if hasSessionMeta { hits.append("session") }
+        if hasTranscript { hits.append("transcript") }
+        if hasBridge { hits.append("bridge") }
+        if hasModel { hits.append("model") }
+        if hits.isEmpty { hits.append("none") }
+        return hits
     }
 
     private func fileModificationDate(atPath path: String?) -> Date? {

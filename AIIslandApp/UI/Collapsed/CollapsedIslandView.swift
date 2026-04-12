@@ -7,6 +7,11 @@ struct CollapsedIslandView: View {
     let claude: AgentState
 
     var body: some View {
+        let companionship = MascotCompanionship(
+            leftBusy: codex.globalState.isBusyFamily,
+            rightBusy: claude.globalState.isBusyFamily
+        )
+
         ZStack {
             ShellBandChrome()
 
@@ -15,14 +20,18 @@ struct CollapsedIslandView: View {
                     title: "Codex",
                     agent: codex,
                     tint: IslandPalette.codexTint,
-                    mascot: AnyView(CodexMascotView(scale: IslandPalette.mascotScale))
+                    mascot: AnyView(CodexMascotView(scale: IslandPalette.mascotScale)),
+                    side: .left,
+                    companionship: companionship
                 )
 
                 AgentCollapsedLobe(
                     title: "Claude Code",
                     agent: claude,
                     tint: IslandPalette.claudeTint,
-                    mascot: AnyView(ClaudeMascotView(scale: IslandPalette.mascotScale))
+                    mascot: AnyView(ClaudeMascotView(scale: IslandPalette.mascotScale)),
+                    side: .right,
+                    companionship: companionship
                 )
             }
         }
@@ -83,6 +92,8 @@ private struct AgentCollapsedLobe: View {
     let agent: AgentState
     let tint: Color
     let mascot: AnyView
+    let side: MascotCompanionship.Side
+    let companionship: MascotCompanionship
 
     private var badgeTint: Color {
         switch agent.globalState {
@@ -101,8 +112,14 @@ private struct AgentCollapsedLobe: View {
 
     var body: some View {
         HStack(spacing: IslandPalette.collapsedLabelSpacing) {
-            mascot
-                .opacity(agent.globalState == .offline ? 0.55 : 1.0)
+            TimelineView(.animation) { timeline in
+                let style = companionship.style(for: side, timestamp: timeline.date.timeIntervalSinceReferenceDate)
+                mascot
+                    .opacity(agent.globalState == .offline ? 0.55 : style.opacity)
+                    .offset(y: style.yOffset)
+                    .scaleEffect(style.scale, anchor: .center)
+            }
+            .frame(width: 14, height: 14)
 
             Text(title)
                 .font(IslandPalette.collapsedTitleFont)
@@ -126,5 +143,71 @@ private struct AgentCollapsedLobe: View {
         .padding(.horizontal, IslandPalette.collapsedContentHorizontalPadding)
         .padding(.vertical, IslandPalette.collapsedContentVerticalPadding)
         .frame(width: IslandPalette.lobeWidth, height: IslandPalette.shellHeight)
+    }
+}
+
+private struct MascotCompanionship {
+    enum Side {
+        case left
+        case right
+    }
+
+    struct Style {
+        let scale: CGFloat
+        let yOffset: CGFloat
+        let opacity: Double
+    }
+
+    let leftBusy: Bool
+    let rightBusy: Bool
+
+    func style(for side: Side, timestamp: TimeInterval) -> Style {
+        let wave = (sin((timestamp * 2.2) + phaseOffset(for: side)) + 1) / 2
+
+        if leftBusy && rightBusy {
+            return Style(
+                scale: 1.02 + (0.03 * wave),
+                yOffset: -0.8 + (-0.4 * wave),
+                opacity: 0.96
+            )
+        }
+
+        if leftBusy || rightBusy {
+            let sideBusy = side == .left ? leftBusy : rightBusy
+            if sideBusy {
+                return Style(
+                    scale: 1.02 + (0.04 * wave),
+                    yOffset: -0.9 + (-0.5 * wave),
+                    opacity: 0.98
+                )
+            }
+
+            return Style(
+                scale: 1.0 + (0.015 * wave),
+                yOffset: 0.1 - (0.3 * wave),
+                opacity: 0.90
+            )
+        }
+
+        return Style(
+            scale: 1.0 + (0.015 * wave),
+            yOffset: 0.2 - (0.4 * wave),
+            opacity: 0.90
+        )
+    }
+
+    private func phaseOffset(for side: Side) -> CGFloat {
+        side == .left ? 0 : .pi
+    }
+}
+
+private extension AgentGlobalState {
+    var isBusyFamily: Bool {
+        switch self {
+        case .thinking, .working, .attention:
+            return true
+        case .idle, .offline:
+            return false
+        }
     }
 }

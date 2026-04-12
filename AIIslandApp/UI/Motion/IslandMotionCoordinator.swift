@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import SwiftUI
 
@@ -7,6 +6,12 @@ import AIIslandCore
 public enum IslandExpansionOrigin: String, Sendable {
     case hover
     case pinned
+}
+
+public enum IslandInterruptionPolicy: String, Equatable, Sendable {
+    case preserveMomentum
+    case gentleSnapBack
+    case holdPinned
 }
 
 public enum IslandMotionPhase: Equatable, Sendable {
@@ -30,15 +35,20 @@ public enum IslandMotionPhase: Equatable, Sendable {
             return origin
         }
     }
+}
 
-    public var isExpandedFamily: Bool {
-        switch self {
-        case .collapsed, .collapsing:
-            return false
-        case .lifting, .promoting, .contentReveal, .expanded:
-            return true
-        }
-    }
+public struct IslandMotionProgress: Equatable, Sendable {
+    public let progress: CGFloat
+    public let target: CGFloat
+    public let phase: IslandMotionPhase
+    public let interruptionPolicy: IslandInterruptionPolicy
+
+    public static let collapsed = IslandMotionProgress(
+        progress: 0,
+        target: 0,
+        phase: .collapsed,
+        interruptionPolicy: .gentleSnapBack
+    )
 }
 
 public struct IslandMotionPresentation: Equatable, Sendable {
@@ -51,17 +61,55 @@ public struct IslandMotionPresentation: Equatable, Sendable {
     public let revealOpacity: Double
     public let revealHeight: CGFloat
     public let blurRadius: CGFloat
+    public let progress: CGFloat
+    public let interruptionPolicy: IslandInterruptionPolicy
 
     public static let collapsed = IslandMotionPresentation(
         phase: .collapsed,
         shellScale: 1.0,
         shellYOffset: 0,
         shellOpacity: 1.0,
-        chromeOpacity: 0.0,
-        sheenOpacity: 0.0,
-        revealOpacity: 0.0,
+        chromeOpacity: 0,
+        sheenOpacity: 0,
+        revealOpacity: 0,
         revealHeight: 0,
-        blurRadius: 0
+        blurRadius: 0,
+        progress: 0,
+        interruptionPolicy: .gentleSnapBack
+    )
+}
+
+public struct IslandMotionTuning: Equatable, Sendable {
+    public let tickInterval: TimeInterval
+    public let hoverTargetProgress: CGFloat
+    public let pinnedTargetProgress: CGFloat
+    public let preserveMomentumGain: CGFloat
+    public let snapBackGain: CGFloat
+    public let reducedMotionGain: CGFloat
+
+    public init(
+        tickInterval: TimeInterval,
+        hoverTargetProgress: CGFloat,
+        pinnedTargetProgress: CGFloat,
+        preserveMomentumGain: CGFloat,
+        snapBackGain: CGFloat,
+        reducedMotionGain: CGFloat
+    ) {
+        self.tickInterval = tickInterval
+        self.hoverTargetProgress = hoverTargetProgress
+        self.pinnedTargetProgress = pinnedTargetProgress
+        self.preserveMomentumGain = preserveMomentumGain
+        self.snapBackGain = snapBackGain
+        self.reducedMotionGain = reducedMotionGain
+    }
+
+    public static let v02Default = IslandMotionTuning(
+        tickInterval: 1.0 / 120.0,
+        hoverTargetProgress: 0.86,
+        pinnedTargetProgress: 1.0,
+        preserveMomentumGain: 0.12,
+        snapBackGain: 0.22,
+        reducedMotionGain: 0.20
     )
 }
 
@@ -70,282 +118,222 @@ public final class IslandMotionCoordinator: ObservableObject {
     @Published public private(set) var phase: IslandMotionPhase = .collapsed
     @Published public private(set) var targetShellState: ShellInteractionState = .collapsed
     @Published public private(set) var reducedMotionEnabled = false
+    @Published public private(set) var motionProgress: IslandMotionProgress = .collapsed
 
+    private let tuning: IslandMotionTuning
+    private var motionTimer: Timer?
+    private var targetProgress: CGFloat = 0
+    private var currentProgress: CGFloat = 0
     private var expansionOrigin: IslandExpansionOrigin?
-    private var transitionTask: Task<Void, Never>?
+    private var interruptionPolicy: IslandInterruptionPolicy = .gentleSnapBack
 
-    public init() {}
+    public init(tuning: IslandMotionTuning = .v02Default) {
+        self.tuning = tuning
+    }
 
     public func configure(reducedMotionEnabled: Bool) {
-        guard self.reducedMotionEnabled != reducedMotionEnabled else {
-            return
-        }
-
         self.reducedMotionEnabled = reducedMotionEnabled
     }
 
     public func apply(shellState: ShellInteractionState) {
         targetShellState = shellState
 
-        switch shellState {
-        case .collapsed:
-            beginCollapse()
-        case .hoverExpanded:
-            beginExpansion(origin: .hover)
-        case .pinnedExpanded:
-            beginExpansion(origin: .pinned)
-        case .collapsing:
-            beginCollapse()
+        let newOrigin: IslandExpansionOrigin? = {
+            switch shellState {
+            case .hoverExpanded:
+                return .hover
+            case .pinnedExpanded:
+                return .pinned
+            case .collapsed, .collapsing:
+                return expansionOrigin
+            }
+        }()
+
+        if let newOrigin {
+            expansionOrigin = newOrigin
         }
+
+        let nextTarget: CGFloat
+        switch shellState {
+        case .collapsed, .collapsing:
+            nextTarget = 0
+        case .hoverExpanded:
+            nextTarget = tuning.hoverTargetProgress
+        case .pinnedExpanded:
+            nextTarget = tuning.pinnedTargetProgress
+        }
+
+        interruptionPolicy = resolveInterruptionPolicy(
+            from: targetProgress,
+            to: nextTarget,
+            shellState: shellState
+        )
+        targetProgress = nextTarget
+        updatePhaseForTargetChange()
+        publishMotionProgress()
+        startMotionTimerIfNeeded()
+    }
+
+    public func advanceForTesting(deltaTime: TimeInterval) {
+        updateMotionFrame(deltaTime: deltaTime)
     }
 
     public var presentation: IslandMotionPresentation {
-        switch phase {
-        case .collapsed:
-            return .collapsed
-        case let .lifting(origin):
-            return presentation(
-                phase: phase,
-                origin: origin,
-                shellScale: reducedMotionEnabled ? 1.004 : 1.006,
-                shellYOffset: 0,
-                chromeOpacity: reducedMotionEnabled ? 0.10 : 0.18,
-                sheenOpacity: reducedMotionEnabled ? 0.06 : 0.12,
-                revealOpacity: reducedMotionEnabled ? 0.04 : 0.07,
-                revealHeight: reducedMotionEnabled ? 3 : 4,
-                blurRadius: reducedMotionEnabled ? 0.2 : 0.4
-            )
-        case let .promoting(origin):
-            return presentation(
-                phase: phase,
-                origin: origin,
-                shellScale: reducedMotionEnabled ? 1.006 : 1.010,
-                shellYOffset: 0,
-                chromeOpacity: reducedMotionEnabled ? 0.22 : 0.36,
-                sheenOpacity: reducedMotionEnabled ? 0.10 : 0.18,
-                revealOpacity: reducedMotionEnabled ? 0.10 : 0.16,
-                revealHeight: reducedMotionEnabled ? 4 : 6,
-                blurRadius: reducedMotionEnabled ? 0.4 : 0.7
-            )
-        case let .contentReveal(origin):
-            return presentation(
-                phase: phase,
-                origin: origin,
-                shellScale: reducedMotionEnabled ? 1.008 : 1.014,
-                shellYOffset: 0,
-                chromeOpacity: reducedMotionEnabled ? 0.34 : 0.55,
-                sheenOpacity: reducedMotionEnabled ? 0.16 : 0.28,
-                revealOpacity: reducedMotionEnabled ? 0.18 : 0.34,
-                revealHeight: reducedMotionEnabled ? 5 : 8,
-                blurRadius: reducedMotionEnabled ? 0.5 : 0.9
-            )
-        case let .expanded(origin):
-            return presentation(
-                phase: phase,
-                origin: origin,
-                shellScale: reducedMotionEnabled ? 1.010 : 1.016,
-                shellYOffset: 0,
-                chromeOpacity: reducedMotionEnabled ? 0.42 : 0.70,
-                sheenOpacity: reducedMotionEnabled ? 0.22 : 0.34,
-                revealOpacity: reducedMotionEnabled ? 0.30 : 0.48,
-                revealHeight: reducedMotionEnabled ? 6 : 10,
-                blurRadius: reducedMotionEnabled ? 0.6 : 1.0
-            )
-        case let .collapsing(origin):
-            return presentation(
-                phase: phase,
-                origin: origin ?? .hover,
-                shellScale: reducedMotionEnabled ? 1.003 : 1.007,
-                shellYOffset: 0,
-                chromeOpacity: reducedMotionEnabled ? 0.08 : 0.16,
-                sheenOpacity: reducedMotionEnabled ? 0.04 : 0.10,
-                revealOpacity: reducedMotionEnabled ? 0.03 : 0.06,
-                revealHeight: reducedMotionEnabled ? 2 : 3,
-                blurRadius: reducedMotionEnabled ? 0.1 : 0.25
-            )
-        }
-    }
+        let p = clamp(currentProgress)
+        let maxScale = reducedMotionEnabled ? 0.010 : 0.016
+        let chromeMax = reducedMotionEnabled ? 0.52 : 0.70
+        let sheenMax = reducedMotionEnabled ? 0.22 : 0.34
+        let blurMax: CGFloat = reducedMotionEnabled ? 0.55 : 1.0
+        let revealMaxHeight: CGFloat = reducedMotionEnabled ? 6 : 10
 
-    private func presentation(
-        phase: IslandMotionPhase,
-        origin: IslandExpansionOrigin,
-        shellScale: CGFloat,
-        shellYOffset: CGFloat,
-        chromeOpacity: Double,
-        sheenOpacity: Double,
-        revealOpacity: Double,
-        revealHeight: CGFloat,
-        blurRadius: CGFloat
-    ) -> IslandMotionPresentation {
-        _ = origin
         return IslandMotionPresentation(
             phase: phase,
-            shellScale: shellScale,
-            shellYOffset: shellYOffset,
+            shellScale: 1 + (maxScale * p),
+            shellYOffset: 0,
             shellOpacity: 1.0,
-            chromeOpacity: chromeOpacity,
-            sheenOpacity: sheenOpacity,
-            revealOpacity: revealOpacity,
-            revealHeight: revealHeight,
-            blurRadius: blurRadius
+            chromeOpacity: chromeMax * p,
+            sheenOpacity: sheenMax * p,
+            revealOpacity: Double(p),
+            revealHeight: revealMaxHeight * p,
+            blurRadius: blurMax * p,
+            progress: p,
+            interruptionPolicy: interruptionPolicy
         )
     }
 
-    private func beginExpansion(origin: IslandExpansionOrigin) {
-        transitionTask?.cancel()
-        transitionTask = nil
+    nonisolated deinit {
+        // Timer invalidation handled from main actor lifecycle.
+    }
 
-        expansionOrigin = origin
-
-        if phase == .collapsed || phaseIsCollapsing {
-            transition(to: .lifting(origin: origin))
-            startExpansionTimeline(origin: origin)
+    private func startMotionTimerIfNeeded() {
+        if motionTimer != nil {
             return
         }
 
-        if let currentOrigin = phase.origin, currentOrigin != origin {
-            transition(to: phase.replacingOrigin(with: origin))
+        let timer = Timer(timeInterval: tuning.tickInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateMotionFrame(deltaTime: self?.tuning.tickInterval ?? (1.0 / 120.0))
+            }
         }
+        timer.tolerance = tuning.tickInterval * 0.25
+        RunLoop.main.add(timer, forMode: .common)
+        motionTimer = timer
     }
 
-    private func beginCollapse() {
-        transitionTask?.cancel()
-        transitionTask = nil
+    private func stopMotionTimer() {
+        motionTimer?.invalidate()
+        motionTimer = nil
+    }
 
-        guard phase != .collapsed else {
-            expansionOrigin = nil
+    private func updateMotionFrame(deltaTime: TimeInterval) {
+        let delta = targetProgress - currentProgress
+        if abs(delta) < 0.0008 {
+            currentProgress = targetProgress
+            updatePhaseFromProgress()
+            publishMotionProgress()
+            if targetProgress == 0 {
+                expansionOrigin = nil
+            }
+            stopMotionTimer()
             return
         }
 
-        let origin = expansionOrigin ?? phase.origin
-        transition(to: .collapsing(origin: origin))
+        let gain = gainForCurrentPolicy()
+        let step = delta * gain * CGFloat(max(deltaTime / tuning.tickInterval, 0.5))
+        currentProgress = clamp(currentProgress + step)
+        updatePhaseFromProgress()
+        publishMotionProgress()
+    }
 
-        transitionTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
+    private func gainForCurrentPolicy() -> CGFloat {
+        if reducedMotionEnabled {
+            return tuning.reducedMotionGain
+        }
 
-            let delay = self.reducedMotionEnabled ? 0.08 : 0.12
-            try? await Task.sleep(nanoseconds: Self.nanoseconds(for: delay))
-            if Task.isCancelled {
-                return
-            }
-
-            await MainActor.run {
-                self.finishCollapse()
-            }
+        switch interruptionPolicy {
+        case .preserveMomentum, .holdPinned:
+            return tuning.preserveMomentumGain
+        case .gentleSnapBack:
+            return tuning.snapBackGain
         }
     }
 
-    private func startExpansionTimeline(origin: IslandExpansionOrigin) {
-        transitionTask = Task { [weak self] in
-            guard let self else {
-                return
-            }
+    private func publishMotionProgress() {
+        let next = IslandMotionProgress(
+            progress: currentProgress,
+            target: targetProgress,
+            phase: phase,
+            interruptionPolicy: interruptionPolicy
+        )
 
-            let steps = self.reducedMotionEnabled
-                ? self.reducedExpansionSteps(origin: origin)
-                : self.standardExpansionSteps(origin: origin)
-
-            for step in steps {
-                try? await Task.sleep(nanoseconds: Self.nanoseconds(for: step.delay))
-                if Task.isCancelled {
-                    return
-                }
-
-                await MainActor.run {
-                    self.transition(to: step.phase)
-                }
-            }
+        if next != motionProgress {
+            motionProgress = next
         }
     }
 
-    private func reducedExpansionSteps(origin: IslandExpansionOrigin) -> [MotionStep] {
-        [
-            MotionStep(phase: .contentReveal(origin: origin), delay: 0.08),
-            MotionStep(phase: .expanded(origin: origin), delay: 0.12),
-        ]
-    }
-
-    private func standardExpansionSteps(origin: IslandExpansionOrigin) -> [MotionStep] {
-        [
-            MotionStep(phase: .promoting(origin: origin), delay: 0.08),
-            MotionStep(phase: .contentReveal(origin: origin), delay: 0.09),
-            MotionStep(phase: .expanded(origin: origin), delay: 0.11),
-        ]
-    }
-
-    private func transition(to newPhase: IslandMotionPhase) {
-        let animation = animation(for: newPhase)
-        withAnimation(animation) {
-            phase = newPhase
+    private func resolveInterruptionPolicy(
+        from currentTarget: CGFloat,
+        to nextTarget: CGFloat,
+        shellState: ShellInteractionState
+    ) -> IslandInterruptionPolicy {
+        if shellState == .pinnedExpanded {
+            return .holdPinned
         }
+
+        if nextTarget < currentTarget {
+            return .gentleSnapBack
+        }
+
+        return .preserveMomentum
     }
 
-    private func finishCollapse() {
-        transitionTask?.cancel()
-        transitionTask = nil
-        expansionOrigin = nil
+    private func updatePhaseForTargetChange() {
+        if targetProgress <= 0.001, currentProgress > 0.01 {
+            phase = .collapsing(origin: expansionOrigin)
+            return
+        }
 
-        withAnimation(animation(for: .collapsed)) {
+        if targetProgress > currentProgress, currentProgress <= 0.01 {
+            phase = .lifting(origin: expansionOrigin ?? .hover)
+            return
+        }
+
+        updatePhaseFromProgress()
+    }
+
+    private func updatePhaseFromProgress() {
+        let p = clamp(currentProgress)
+        let origin = expansionOrigin ?? .hover
+
+        if p <= 0.01 {
             phase = .collapsed
-        }
-    }
-
-    private func animation(for phase: IslandMotionPhase) -> Animation {
-        let duration: Double
-
-        switch phase {
-        case .collapsed:
-            duration = reducedMotionEnabled ? 0.10 : 0.14
-        case .lifting:
-            duration = reducedMotionEnabled ? 0.08 : 0.14
-        case .promoting:
-            duration = reducedMotionEnabled ? 0.08 : 0.12
-        case .contentReveal:
-            duration = reducedMotionEnabled ? 0.08 : 0.10
-        case .expanded:
-            duration = reducedMotionEnabled ? 0.08 : 0.10
-        case .collapsing:
-            duration = reducedMotionEnabled ? 0.08 : 0.11
+            return
         }
 
-        return .easeOut(duration: duration)
-    }
-
-    private var phaseIsCollapsing: Bool {
-        if case .collapsing = phase {
-            return true
+        if targetProgress <= 0.001, p > 0.01 {
+            phase = .collapsing(origin: expansionOrigin)
+            return
         }
 
-        return false
-    }
-
-    private struct MotionStep {
-        let phase: IslandMotionPhase
-        let delay: TimeInterval
-    }
-
-    private static func nanoseconds(for interval: TimeInterval) -> UInt64 {
-        UInt64((interval * 1_000_000_000).rounded())
-    }
-}
-
-private extension IslandMotionPhase {
-    func replacingOrigin(with origin: IslandExpansionOrigin) -> IslandMotionPhase {
-        switch self {
-        case .collapsed:
-            return .collapsed
-        case .lifting:
-            return .lifting(origin: origin)
-        case .promoting:
-            return .promoting(origin: origin)
-        case .contentReveal:
-            return .contentReveal(origin: origin)
-        case .expanded:
-            return .expanded(origin: origin)
-        case .collapsing:
-            return .collapsing(origin: origin)
+        if p < 0.34 {
+            phase = .lifting(origin: origin)
+            return
         }
+
+        if p < 0.68 {
+            phase = .promoting(origin: origin)
+            return
+        }
+
+        if p < 0.94 {
+            phase = .contentReveal(origin: origin)
+            return
+        }
+
+        phase = .expanded(origin: origin)
+    }
+
+    private func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0), 1)
     }
 }

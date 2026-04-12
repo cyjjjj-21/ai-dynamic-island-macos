@@ -12,66 +12,258 @@ final class CodexMonitor: ObservableObject {
         threads: [],
         quota: nil
     )
+    @Published private(set) var diagnostics: AgentMonitorDiagnostics
 
-    private let fileManager: FileManager
+    private let fileManagerHandle: FileManagerHandle
     private let codexHomePath: String
-    private var pollTimer: Timer?
+    private let freshnessPolicy: MonitorFreshnessPolicy
+    private let keepAlivePollInterval: TimeInterval
+    private let eventDebounceInterval: TimeInterval
+    private let injectedSignalSource: RealtimeSignalSource?
 
-    private static let activeStateWindow: TimeInterval = 2 * 60
-    private static let coolingIdleWindow: TimeInterval = 8 * 60
-    private static let visibleIdleWindow: TimeInterval = 15 * 60
-    private static let liveSignalWindow: TimeInterval = 30 * 60
-    private static let maxVisibleThreads = 3
-    private static let maxSessionFilesToScan = 36
-    private static let sessionTailBytes: UInt64 = 524_288
-    private static let sessionTailMaxBytes: UInt64 = 8 * 1_024 * 1_024
-    private static let minSessionTailLineCount = 180
+    private var pollTimer: Timer?
+    private var signalSource: RealtimeSignalSource?
+    private var pendingRefreshWorkItem: DispatchWorkItem?
+    private var lastRefreshAt: Date = .distantPast
+    private var lastKnownModels: [String: CachedModel] = [:]
+    private var refreshInFlight = false
+    private var refreshDirty = false
+    private var coalescedTrigger = "event"
+    private var refreshGeneration: UInt64 = 0
+    private var activeRefreshGeneration: UInt64 = 0
+    private var isRunning = false
+    private let workerQueue = DispatchQueue(label: "com.aiisland.monitor.codex.worker", qos: .utility)
+
+    private nonisolated static let maxVisibleThreads = 3
+    private nonisolated static let maxSessionFilesToScan = 36
+    private nonisolated static let sessionTailBytes: UInt64 = 524_288
+    private nonisolated static let sessionTailMaxBytes: UInt64 = 8 * 1_024 * 1_024
+    private nonisolated static let minSessionTailLineCount = 180
+
+    private struct CachedModel: Sendable {
+        let label: String
+        let updatedAt: Date
+    }
+
+    private struct FileManagerHandle: @unchecked Sendable {
+        let value: FileManager
+    }
+
+    private struct RefreshComputation: Sendable {
+        let state: AgentState
+        let diagnostics: AgentMonitorDiagnostics
+        let watchedPaths: [String]
+        let updatedModels: [String: CachedModel]
+    }
 
     init(
         fileManager: FileManager = .default,
-        codexHomePath: String = NSHomeDirectory() + "/.codex"
+        codexHomePath: String = NSHomeDirectory() + "/.codex",
+        freshnessPolicy: MonitorFreshnessPolicy = .v02Smooth,
+        keepAlivePollInterval: TimeInterval = 2.0,
+        eventDebounceInterval: TimeInterval = 0.15,
+        signalSource: RealtimeSignalSource? = nil
     ) {
-        self.fileManager = fileManager
+        fileManagerHandle = FileManagerHandle(value: fileManager)
         self.codexHomePath = codexHomePath
+        self.freshnessPolicy = freshnessPolicy
+        self.keepAlivePollInterval = keepAlivePollInterval
+        self.eventDebounceInterval = eventDebounceInterval
+        injectedSignalSource = signalSource
+        diagnostics = .empty(
+            kind: .codex,
+            freshnessPolicy: freshnessPolicy,
+            triggerMode: "event+poll"
+        )
     }
 
     func start() {
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        isRunning = true
+        configureSignalSourceIfNeeded()
+
+        let timer = Timer(timeInterval: keepAlivePollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refresh()
+                self?.scheduleRefresh(trigger: "poll")
             }
         }
-        refresh()
+        timer.tolerance = keepAlivePollInterval * 0.25
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
+        scheduleRefresh(trigger: "startup")
     }
 
     func stop() {
+        isRunning = false
+        pendingRefreshWorkItem?.cancel()
+        pendingRefreshWorkItem = nil
+        refreshDirty = false
+        refreshInFlight = false
+        refreshGeneration &+= 1
+        activeRefreshGeneration = refreshGeneration
+
         pollTimer?.invalidate()
         pollTimer = nil
+
+        signalSource?.stop()
+        signalSource = nil
     }
 
     nonisolated deinit {
-        // Timer invalidation handled by stop() or natural deallocation.
+        // Timer and signal source are cleaned up from stop().
     }
 
     func refreshNow() {
-        refresh()
+        refreshGeneration &+= 1
+        activeRefreshGeneration = refreshGeneration
+        let result = Self.computeRefresh(
+            fileManager: fileManagerHandle.value,
+            codexHomePath: codexHomePath,
+            freshnessPolicy: freshnessPolicy,
+            cachedModels: lastKnownModels,
+            trigger: "manual"
+        )
+        applyComputation(result)
     }
 
-    private func refresh() {
+    private func scheduleRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
+        let now = Date()
+        let age = now.timeIntervalSince(lastRefreshAt)
+        if age >= eventDebounceInterval {
+            requestRefresh(trigger: trigger)
+            return
+        }
+
+        pendingRefreshWorkItem?.cancel()
+        let delay = max(0.01, eventDebounceInterval - age)
+        let workItem = DispatchWorkItem { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.requestRefresh(trigger: trigger)
+            }
+        }
+        pendingRefreshWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+    }
+
+    private func configureSignalSourceIfNeeded() {
+        if signalSource != nil {
+            return
+        }
+
+        let source = injectedSignalSource ?? VnodeRealtimeSignalSource(
+            paths: Self.baseWatchedPaths(codexHomePath: codexHomePath)
+        )
+        source.onSignal = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.scheduleRefresh(trigger: "event")
+            }
+        }
+        source.start()
+        signalSource = source
+    }
+
+    private func requestRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
+        if refreshInFlight {
+            refreshDirty = true
+            coalescedTrigger = trigger
+            return
+        }
+
+        launchRefresh(trigger: trigger)
+    }
+
+    private func launchRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
+        pendingRefreshWorkItem?.cancel()
+        pendingRefreshWorkItem = nil
+        lastRefreshAt = Date()
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        activeRefreshGeneration = generation
+        refreshInFlight = true
+        refreshDirty = false
+
+        let fileManagerHandle = self.fileManagerHandle
+        let codexHomePath = self.codexHomePath
+        let freshnessPolicy = self.freshnessPolicy
+        let cachedModels = self.lastKnownModels
+
+        workerQueue.async { [weak self] in
+            let result = Self.computeRefresh(
+                fileManager: fileManagerHandle.value,
+                codexHomePath: codexHomePath,
+                freshnessPolicy: freshnessPolicy,
+                cachedModels: cachedModels,
+                trigger: trigger
+            )
+            Task { @MainActor [weak self] in
+                self?.finishRefresh(result: result, generation: generation)
+            }
+        }
+    }
+
+    private func finishRefresh(result: RefreshComputation, generation: UInt64) {
+        guard isRunning else {
+            return
+        }
+        guard generation == activeRefreshGeneration else {
+            return
+        }
+
+        applyComputation(result)
+        refreshInFlight = false
+
+        if refreshDirty {
+            refreshDirty = false
+            launchRefresh(trigger: coalescedTrigger)
+        }
+    }
+
+    private func applyComputation(_ result: RefreshComputation) {
+        if codexState != result.state {
+            codexState = result.state
+        }
+        diagnostics = result.diagnostics
+        lastKnownModels = result.updatedModels
+        signalSource?.updateWatchedPaths(result.watchedPaths)
+    }
+
+    private nonisolated static func computeRefresh(
+        fileManager: FileManager,
+        codexHomePath: String,
+        freshnessPolicy: MonitorFreshnessPolicy,
+        cachedModels: [String: CachedModel],
+        trigger: String
+    ) -> RefreshComputation {
         let now = Date()
         let indexURL = URL(fileURLWithPath: codexHomePath, isDirectory: true)
             .appendingPathComponent("session_index.jsonl")
         let sessionsURL = URL(fileURLWithPath: codexHomePath, isDirectory: true)
             .appendingPathComponent("sessions", isDirectory: true)
 
+        var mutableModels = cachedModels
         var hasReadableCodexArtifacts = false
-
-        let indexedThreads = loadIndexedThreads(from: indexURL, hasReadableArtifacts: &hasReadableCodexArtifacts)
+        let indexedThreads = loadIndexedThreads(
+            fileManager: fileManager,
+            from: indexURL,
+            hasReadableArtifacts: &hasReadableCodexArtifacts
+        )
         let indexedThreadByID = Dictionary(uniqueKeysWithValues: indexedThreads.map { ($0.threadID, $0) })
-        let sessionFiles = discoverSessionFiles(in: sessionsURL)
+        let sessionFiles = discoverSessionFiles(fileManager: fileManager, in: sessionsURL)
         if !sessionFiles.isEmpty {
             hasReadableCodexArtifacts = true
         }
+        let watchedPaths = watchedPaths(codexHomePath: codexHomePath, sessionFiles: sessionFiles)
 
         var parsedSnapshots: [CodexSessionSnapshot] = []
         parsedSnapshots.reserveCapacity(sessionFiles.count)
@@ -83,33 +275,43 @@ final class CodexMonitor: ObservableObject {
 
             let sessionID = resolveThreadID(from: sessionFile.url)
             let fallbackTaskLabel = indexedThreadByID[sessionID]?.threadName ?? ""
-            var parsedSnapshot = CodexSessionSnapshotParser.parse(
+            var snapshot = CodexSessionSnapshotParser.parse(
                 tailText,
                 sessionID: sessionID,
                 fallbackTaskLabel: fallbackTaskLabel
             )
 
-            if parsedSnapshot.updatedAt == nil {
-                parsedSnapshot = CodexSessionSnapshotParser.replacing(
-                    parsedSnapshot,
+            if snapshot.updatedAt == nil {
+                snapshot = CodexSessionSnapshotParser.replacing(
+                    snapshot,
                     updatedAt: indexedThreadByID[sessionID]?.updatedAt
                 )
             }
 
-            if parsedSnapshot.trustLevel != CodexSnapshotTrustLevel.insufficient
-                || parsedSnapshot.hasStructuredTokenSignal
-                || !parsedSnapshot.taskLabel.isEmpty
+            snapshot = applyModelCache(
+                to: snapshot,
+                now: now,
+                freshnessPolicy: freshnessPolicy,
+                knownModels: &mutableModels
+            )
+
+            if snapshot.trustLevel != .insufficient
+                || snapshot.hasStructuredTokenSignal
+                || !snapshot.taskLabel.isEmpty
             {
-                parsedSnapshots.append(parsedSnapshot)
+                parsedSnapshots.append(snapshot)
             }
         }
 
         let liveSignalSnapshots = parsedSnapshots.filter {
-            $0.trustLevel == .eventDerived && hasLiveSignal($0, now: now)
+            freshnessPolicy.stage(lastSignalAt: $0.updatedAt, now: now) != .expired
+                && $0.trustLevel == .eventDerived
         }
+
         let displaySnapshots = liveSignalSnapshots.compactMap {
-            decaySnapshotForDisplay($0, now: now)
+            decaySnapshotForDisplay($0, now: now, freshnessPolicy: freshnessPolicy)
         }
+
         let hasEventDerivedSignals = parsedSnapshots.contains { $0.trustLevel == .eventDerived }
         let effectiveSnapshots: [CodexSessionSnapshot]
         if liveSignalSnapshots.isEmpty {
@@ -123,7 +325,7 @@ final class CodexMonitor: ObservableObject {
         }
 
         let availability: AgentAvailability
-        if hasReadableCodexArtifacts == false {
+        if !hasReadableCodexArtifacts {
             availability = .offline
         } else if liveSignalSnapshots.isEmpty {
             availability = .statusUnavailable
@@ -133,31 +335,22 @@ final class CodexMonitor: ObservableObject {
 
         let candidateThreads: [CodexSessionSnapshot]
         if availability == .available {
-            candidateThreads = displaySnapshots.filter { snapshot in
-                guard snapshot.trustLevel == .eventDerived else {
-                    return false
-                }
-
-                switch snapshot.state {
-                case .attention, .working, .thinking:
-                    return true
-                case .idle:
-                    return true
-                case .offline:
-                    return false
-                }
-            }
+            candidateThreads = displaySnapshots.filter { $0.trustLevel == .eventDerived }
+        } else if hasEventDerivedSignals {
+            candidateThreads = []
         } else {
-            if hasEventDerivedSignals {
-                candidateThreads = []
-            } else {
-                candidateThreads = effectiveSnapshots.filter { $0.trustLevel == .recentIndexFallback }
-            }
+            candidateThreads = effectiveSnapshots.filter { $0.trustLevel == .recentIndexFallback }
         }
 
         let sortedThreads = candidateThreads.sorted { lhs, rhs in
             if statePriority(lhs.state) != statePriority(rhs.state) {
                 return statePriority(lhs.state) > statePriority(rhs.state)
+            }
+
+            let lhsScore = freshnessPolicy.freshnessScore(lastSignalAt: lhs.updatedAt, now: now)
+            let rhsScore = freshnessPolicy.freshnessScore(lastSignalAt: rhs.updatedAt, now: now)
+            if lhsScore != rhsScore {
+                return lhsScore > rhsScore
             }
 
             if lhs.updatedAt != rhs.updatedAt {
@@ -188,9 +381,7 @@ final class CodexMonitor: ObservableObject {
 
         let latestQuotaSnapshot = liveSignalSnapshots
             .filter { $0.fiveHourRatio != nil || $0.weeklyRatio != nil }
-            .sorted { lhs, rhs in
-                (lhs.updatedAt ?? .distantPast) > (rhs.updatedAt ?? .distantPast)
-            }
+            .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
             .first
 
         let quota: AgentQuota? = availability == .offline ? nil : AgentQuota(
@@ -208,12 +399,52 @@ final class CodexMonitor: ObservableObject {
             quota: quota
         )
 
-        if codexState != newState {
-            codexState = newState
-        }
+        let newDiagnostics = AgentMonitorDiagnostics(
+            kind: .codex,
+            refreshedAt: now,
+            freshnessPolicy: freshnessPolicy,
+            triggerMode: "event+poll/\(trigger)",
+            threads: parsedSnapshots
+                .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+                .prefix(4)
+                .map { snapshot in
+                    MonitorThreadDiagnostics(
+                        id: snapshot.sessionID,
+                        lastSignalAt: snapshot.updatedAt,
+                        stage: freshnessPolicy.stage(lastSignalAt: snapshot.updatedAt, now: now),
+                        sourceHits: sourceHits(for: snapshot)
+                    )
+                }
+        )
+
+        return RefreshComputation(
+            state: newState,
+            diagnostics: newDiagnostics,
+            watchedPaths: watchedPaths,
+            updatedModels: mutableModels
+        )
     }
 
-    private func loadIndexedThreads(
+    private nonisolated static func baseWatchedPaths(codexHomePath: String) -> [String] {
+        [
+            codexHomePath,
+            codexHomePath + "/session_index.jsonl",
+            codexHomePath + "/sessions",
+        ]
+    }
+
+    private nonisolated static func watchedPaths(
+        codexHomePath: String,
+        sessionFiles: [SessionFileCandidate]
+    ) -> [String] {
+        var paths = baseWatchedPaths(codexHomePath: codexHomePath)
+        let parentDirs = sessionFiles.map { $0.url.deletingLastPathComponent().path }
+        paths.append(contentsOf: parentDirs)
+        return paths
+    }
+
+    private nonisolated static func loadIndexedThreads(
+        fileManager: FileManager,
         from indexURL: URL,
         hasReadableArtifacts: inout Bool
     ) -> [CodexIndexedThread] {
@@ -227,13 +458,16 @@ final class CodexMonitor: ObservableObject {
         return CodexSessionIndexParser.parse(text)
     }
 
-    private struct SessionFileCandidate {
+    private struct SessionFileCandidate: Sendable {
         let url: URL
         let modifiedAt: Date
         let fileSize: UInt64
     }
 
-    private func discoverSessionFiles(in sessionsDirectoryURL: URL) -> [SessionFileCandidate] {
+    private nonisolated static func discoverSessionFiles(
+        fileManager: FileManager,
+        in sessionsDirectoryURL: URL
+    ) -> [SessionFileCandidate] {
         guard
             let enumerator = fileManager.enumerator(
                 at: sessionsDirectoryURL,
@@ -277,7 +511,7 @@ final class CodexMonitor: ObservableObject {
         return Array(files.prefix(Self.maxSessionFilesToScan))
     }
 
-    private func readSessionTail(atPath path: String, fileSize: UInt64) -> String? {
+    private nonisolated static func readSessionTail(atPath path: String, fileSize: UInt64) -> String? {
         guard let handle = FileHandle(forReadingAtPath: path) else {
             return nil
         }
@@ -329,7 +563,7 @@ final class CodexMonitor: ObservableObject {
         }
     }
 
-    private func resolveThreadID(from sessionFileURL: URL) -> String {
+    private nonisolated static func resolveThreadID(from sessionFileURL: URL) -> String {
         let filename = sessionFileURL.deletingPathExtension().lastPathComponent
         let pattern = #"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"#
         if let range = filename.range(of: pattern, options: .regularExpression) {
@@ -338,7 +572,7 @@ final class CodexMonitor: ObservableObject {
         return filename
     }
 
-    private func resolveGlobalState(
+    private nonisolated static func resolveGlobalState(
         availability: AgentAvailability,
         snapshots: [CodexSessionSnapshot]
     ) -> AgentGlobalState {
@@ -357,67 +591,21 @@ final class CodexMonitor: ObservableObject {
         if eventDerivedStates.contains(.attention) {
             return .attention
         }
-
         if eventDerivedStates.contains(.working) {
             return .working
         }
-
         if eventDerivedStates.contains(.thinking) {
             return .thinking
         }
-
         return .idle
     }
 
-    private enum ActivityDecayStage {
-        case live
-        case cooling
-        case recentIdle
-        case staleHidden
-        case expired
-    }
-
-    private func decayStage(
+    private nonisolated static func decaySnapshotForDisplay(
         _ snapshot: CodexSessionSnapshot,
-        now: Date
-    ) -> ActivityDecayStage {
-        guard let updatedAt = snapshot.updatedAt else {
-            return .expired
-        }
-
-        let age = max(0, now.timeIntervalSince(updatedAt))
-        if age <= Self.activeStateWindow {
-            return .live
-        }
-        if age <= Self.coolingIdleWindow {
-            return .cooling
-        }
-        if age <= Self.visibleIdleWindow {
-            return .recentIdle
-        }
-        if age <= Self.liveSignalWindow {
-            return .staleHidden
-        }
-        return .expired
-    }
-
-    private func hasLiveSignal(
-        _ snapshot: CodexSessionSnapshot,
-        now: Date
-    ) -> Bool {
-        switch decayStage(snapshot, now: now) {
-        case .live, .cooling, .recentIdle, .staleHidden:
-            return true
-        case .expired:
-            return false
-        }
-    }
-
-    private func decaySnapshotForDisplay(
-        _ snapshot: CodexSessionSnapshot,
-        now: Date
+        now: Date,
+        freshnessPolicy: MonitorFreshnessPolicy
     ) -> CodexSessionSnapshot? {
-        switch decayStage(snapshot, now: now) {
+        switch freshnessPolicy.stage(lastSignalAt: snapshot.updatedAt, now: now) {
         case .live:
             return snapshot
         case .cooling, .recentIdle:
@@ -442,7 +630,67 @@ final class CodexMonitor: ObservableObject {
         }
     }
 
-    private func statePriority(_ state: AgentGlobalState) -> Int {
+    private nonisolated static func applyModelCache(
+        to snapshot: CodexSessionSnapshot,
+        now: Date,
+        freshnessPolicy: MonitorFreshnessPolicy,
+        knownModels: inout [String: CachedModel]
+    ) -> CodexSessionSnapshot {
+        let cacheWindow = freshnessPolicy.visibleIdleWindow
+
+        if !snapshot.modelLabel.isEmpty {
+            knownModels[snapshot.sessionID] = CachedModel(
+                label: snapshot.modelLabel,
+                updatedAt: snapshot.updatedAt ?? now
+            )
+            return snapshot
+        }
+
+        guard let cached = knownModels[snapshot.sessionID] else {
+            return snapshot
+        }
+
+        if now.timeIntervalSince(cached.updatedAt) > cacheWindow {
+            knownModels.removeValue(forKey: snapshot.sessionID)
+            return snapshot
+        }
+
+        return CodexSessionSnapshot(
+            sessionID: snapshot.sessionID,
+            taskLabel: snapshot.taskLabel,
+            modelLabel: cached.label,
+            contextRatio: snapshot.contextRatio,
+            fiveHourRatio: snapshot.fiveHourRatio,
+            weeklyRatio: snapshot.weeklyRatio,
+            state: snapshot.state,
+            updatedAt: snapshot.updatedAt,
+            trustLevel: snapshot.trustLevel,
+            hasStructuredTokenSignal: snapshot.hasStructuredTokenSignal,
+            hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal
+        )
+    }
+
+    private nonisolated static func sourceHits(for snapshot: CodexSessionSnapshot) -> [String] {
+        var hits: [String] = []
+        if snapshot.trustLevel == .recentIndexFallback {
+            hits.append("index")
+        }
+        if snapshot.hasStructuredActivitySignal {
+            hits.append("activity")
+        }
+        if snapshot.hasStructuredTokenSignal {
+            hits.append("token")
+        }
+        if !snapshot.modelLabel.isEmpty {
+            hits.append("model")
+        }
+        if hits.isEmpty {
+            hits.append("none")
+        }
+        return hits
+    }
+
+    private nonisolated static func statePriority(_ state: AgentGlobalState) -> Int {
         switch state {
         case .attention:
             return 4
@@ -457,7 +705,7 @@ final class CodexMonitor: ObservableObject {
         }
     }
 
-    private func trustPriority(_ trustLevel: CodexSnapshotTrustLevel) -> Int {
+    private nonisolated static func trustPriority(_ trustLevel: CodexSnapshotTrustLevel) -> Int {
         switch trustLevel {
         case .eventDerived:
             return 3

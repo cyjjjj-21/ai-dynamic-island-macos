@@ -99,6 +99,9 @@ final class IslandWindowController: NSWindowController {
         hotzoneView.onEscapeKey = { [weak self] in
             self?.handleEscapeKey()
         }
+        hotzoneView.onToggleDiagnostics = { [weak self] in
+            self?.toggleDiagnostics()
+        }
     }
 
     private func handlePointerEntered() {
@@ -145,6 +148,12 @@ final class IslandWindowController: NSWindowController {
         shellInteractionController.send(.escapeKey)
         islandWindow.resignKey()
         hotzoneView.syncPointerState()
+    }
+
+    private func toggleDiagnostics() {
+        let key = IslandPalette.diagnosticsUserDefaultsKey
+        let current = UserDefaults.standard.bool(forKey: key)
+        UserDefaults.standard.set(!current, forKey: key)
     }
 
     private func localPoint(fromScreenPoint screenPoint: CGPoint) -> CGPoint? {

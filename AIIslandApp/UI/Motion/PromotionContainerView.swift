@@ -1,3 +1,5 @@
+import AppKit
+import QuartzCore
 import SwiftUI
 
 import AIIslandCore
@@ -6,21 +8,34 @@ struct PromotionContainerView: View {
     @ObservedObject var coordinator: IslandMotionCoordinator
     let codex: AgentState
     let claude: AgentState
+    let codexDiagnostics: AgentMonitorDiagnostics
+    let claudeDiagnostics: AgentMonitorDiagnostics
 
     var body: some View {
         let presentation = coordinator.presentation
-        let cardOpacity = max(0, min(1, (presentation.revealOpacity - 0.08) / 0.22))
-        let cardOffset = (1 - cardOpacity) * -8
+        let p = presentation.progress
+        let cardOpacity = clamp((p - 0.34) / 0.58)
+        let cardOffset = (1 - cardOpacity) * -10
 
         ZStack(alignment: .top) {
-            promotedShellBackdrop(presentation: presentation)
-            promotedShellBody(presentation: presentation)
+            CoreAnimationShellEffectsView(
+                progress: p,
+                interruptionPolicy: presentation.interruptionPolicy,
+                codexState: codex.globalState,
+                claudeState: claude.globalState
+            )
+            .frame(width: IslandPalette.canvasWidth, height: IslandPalette.canvasHeight, alignment: .top)
 
             if cardOpacity > 0 {
-                ExpandedIslandCardView(codex: codex, claude: claude)
-                    .padding(.top, IslandPalette.shellHeight + IslandPalette.expandedCardTopSpacing)
-                    .offset(y: cardOffset)
-                    .opacity(cardOpacity)
+                ExpandedIslandCardView(
+                    codex: codex,
+                    claude: claude,
+                    codexDiagnostics: codexDiagnostics,
+                    claudeDiagnostics: claudeDiagnostics
+                )
+                .padding(.top, IslandPalette.shellHeight + IslandPalette.expandedCardTopSpacing)
+                .offset(y: cardOffset)
+                .opacity(cardOpacity)
             }
 
             CollapsedIslandView(codex: codex, claude: claude)
@@ -33,87 +48,202 @@ struct PromotionContainerView: View {
         .allowsHitTesting(false)
     }
 
-    @ViewBuilder
-    private func promotedShellBackdrop(presentation: IslandMotionPresentation) -> some View {
-        if presentation.chromeOpacity > 0 {
-            PromotedShellBand()
-            .scaleEffect(x: presentation.shellScale, y: 1.0, anchor: .center)
-            .offset(y: presentation.shellYOffset)
-            .blur(radius: presentation.blurRadius)
-            .opacity(presentation.chromeOpacity)
-        }
+    private func clamp(_ value: CGFloat) -> CGFloat {
+        min(max(value, 0), 1)
+    }
+}
+
+private struct CoreAnimationShellEffectsView: NSViewRepresentable {
+    let progress: CGFloat
+    let interruptionPolicy: IslandInterruptionPolicy
+    let codexState: AgentGlobalState
+    let claudeState: AgentGlobalState
+
+    func makeNSView(context: Context) -> CoreAnimationShellEffectsNSView {
+        CoreAnimationShellEffectsNSView(frame: NSRect(origin: .zero, size: CGSize(
+            width: IslandPalette.canvasWidth,
+            height: IslandPalette.canvasHeight
+        )))
     }
 
-    @ViewBuilder
-    private func promotedShellBody(presentation: IslandMotionPresentation) -> some View {
-        if presentation.revealOpacity > 0 {
-            HStack(spacing: IslandPalette.physicalNotchWidth) {
-                RoundedRectangle(cornerRadius: IslandPalette.shellHeight / 2, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                IslandPalette.codexTint.opacity(0.10),
-                                Color.white.opacity(0.08)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: IslandPalette.lobeWidth, height: presentation.revealHeight)
+    func updateNSView(_ view: CoreAnimationShellEffectsNSView, context: Context) {
+        view.update(
+            progress: progress,
+            interruptionPolicy: interruptionPolicy,
+            codexState: codexState,
+            claudeState: claudeState
+        )
+    }
+}
 
-                RoundedRectangle(cornerRadius: IslandPalette.shellHeight / 2, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                IslandPalette.claudeTint.opacity(0.10),
-                                Color.white.opacity(0.08)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: IslandPalette.lobeWidth, height: presentation.revealHeight)
-            }
-            .padding(.top, IslandPalette.shellHeight - presentation.revealHeight)
-            .blur(radius: presentation.blurRadius * 0.8)
-            .opacity(presentation.revealOpacity)
-            .scaleEffect(x: presentation.shellScale, y: 1.0, anchor: .center)
-            .offset(y: presentation.shellYOffset)
-            .blendMode(.screen)
+private final class CoreAnimationShellEffectsNSView: NSView {
+    private let haloLayer = CAGradientLayer()
+    private let leftRevealLayer = CAGradientLayer()
+    private let rightRevealLayer = CAGradientLayer()
+    private let bridgeGlowLayer = CAGradientLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        layer = CALayer()
+        layer?.masksToBounds = false
+        configureLayers()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func update(
+        progress: CGFloat,
+        interruptionPolicy: IslandInterruptionPolicy,
+        codexState: AgentGlobalState,
+        claudeState: AgentGlobalState
+    ) {
+        let p = min(max(progress, 0), 1)
+        let shellX = (IslandPalette.canvasWidth - IslandPalette.shellWidth) / 2
+        let shellY: CGFloat = 0
+        let shellRect = CGRect(
+            x: shellX,
+            y: shellY,
+            width: IslandPalette.shellWidth,
+            height: IslandPalette.shellHeight
+        )
+        let revealHeight = max(2, 10 * p)
+        let revealY = shellRect.maxY - revealHeight
+        let leftRect = CGRect(
+            x: shellRect.minX,
+            y: revealY,
+            width: IslandPalette.lobeWidth,
+            height: revealHeight
+        )
+        let rightRect = CGRect(
+            x: shellRect.maxX - IslandPalette.lobeWidth,
+            y: revealY,
+            width: IslandPalette.lobeWidth,
+            height: revealHeight
+        )
+        let bridgeRect = CGRect(
+            x: shellRect.midX - 48,
+            y: revealY + (revealHeight * 0.2),
+            width: 96,
+            height: max(1.5, revealHeight * 0.45)
+        )
+
+        let resonance = MascotResonanceMatrix.resolve(
+            codexState: codexState,
+            claudeState: claudeState,
+            time: CACurrentMediaTime()
+        )
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(false)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
+        CATransaction.setAnimationDuration(animationDuration(for: interruptionPolicy))
+
+        haloLayer.frame = shellRect.insetBy(dx: -4, dy: -2)
+        haloLayer.opacity = Float(0.16 * p)
+
+        leftRevealLayer.frame = leftRect
+        leftRevealLayer.opacity = Float((0.10 + (0.46 * p)) + resonance.leftBoost)
+        leftRevealLayer.cornerRadius = revealHeight / 2
+
+        rightRevealLayer.frame = rightRect
+        rightRevealLayer.opacity = Float((0.10 + (0.46 * p)) + resonance.rightBoost)
+        rightRevealLayer.cornerRadius = revealHeight / 2
+
+        bridgeGlowLayer.frame = bridgeRect
+        bridgeGlowLayer.cornerRadius = bridgeRect.height / 2
+        bridgeGlowLayer.opacity = Float((0.05 + (0.24 * p)) * resonance.bridgeAlpha)
+
+        CATransaction.commit()
+    }
+
+    private func configureLayers() {
+        guard let layer else {
+            return
+        }
+
+        haloLayer.colors = [
+            NSColor.black.withAlphaComponent(0.30).cgColor,
+            NSColor.black.withAlphaComponent(0.04).cgColor
+        ]
+        haloLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
+        haloLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
+        haloLayer.cornerRadius = IslandPalette.shellHeight / 2
+        haloLayer.opacity = 0
+
+        leftRevealLayer.colors = [
+            NSColor(calibratedRed: 0.58, green: 0.86, blue: 0.96, alpha: 0.88).cgColor,
+            NSColor.white.withAlphaComponent(0.10).cgColor
+        ]
+        leftRevealLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
+        leftRevealLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
+        leftRevealLayer.opacity = 0
+
+        rightRevealLayer.colors = [
+            NSColor(calibratedRed: 0.94, green: 0.66, blue: 0.67, alpha: 0.88).cgColor,
+            NSColor.white.withAlphaComponent(0.10).cgColor
+        ]
+        rightRevealLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
+        rightRevealLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
+        rightRevealLayer.opacity = 0
+
+        bridgeGlowLayer.colors = [
+            NSColor.white.withAlphaComponent(0.35).cgColor,
+            NSColor.white.withAlphaComponent(0.0).cgColor
+        ]
+        bridgeGlowLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
+        bridgeGlowLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
+        bridgeGlowLayer.opacity = 0
+
+        layer.addSublayer(haloLayer)
+        layer.addSublayer(leftRevealLayer)
+        layer.addSublayer(rightRevealLayer)
+        layer.addSublayer(bridgeGlowLayer)
+    }
+
+    private func animationDuration(for policy: IslandInterruptionPolicy) -> CFTimeInterval {
+        switch policy {
+        case .preserveMomentum:
+            return 0.10
+        case .gentleSnapBack:
+            return 0.14
+        case .holdPinned:
+            return 0.09
         }
     }
 }
 
-private struct PromotedShellBand: View {
-    var body: some View {
-        ShellBandShape()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.14),
-                        Color.white.opacity(0.05),
-                        Color.black.opacity(0.10)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                style: FillStyle(eoFill: true)
-            )
-            .overlay {
-                RoundedRectangle(
-                    cornerRadius: IslandPalette.shellHeight / 2,
-                    style: .continuous
-                )
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
-            }
-            .overlay(alignment: .top) {
-                PhysicalNotchCutoutShape()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    .frame(
-                        width: IslandPalette.physicalNotchWidth,
-                        height: IslandPalette.physicalNotchHeight
-                    )
-            }
-            .frame(width: IslandPalette.shellWidth, height: IslandPalette.shellHeight)
+private struct MascotResonanceMatrix {
+    let leftBoost: Double
+    let rightBoost: Double
+    let bridgeAlpha: Double
+
+    static func resolve(
+        codexState: AgentGlobalState,
+        claudeState: AgentGlobalState,
+        time: CFTimeInterval
+    ) -> Self {
+        let codexBusy = codexState == .thinking || codexState == .working || codexState == .attention
+        let claudeBusy = claudeState == .thinking || claudeState == .working || claudeState == .attention
+        let wave = (sin(time * 2.4) + 1) / 2
+        let counterWave = (sin((time * 2.4) + .pi) + 1) / 2
+
+        if codexBusy && claudeBusy {
+            let sync = 0.08 + (0.07 * wave)
+            return Self(leftBoost: sync, rightBoost: sync, bridgeAlpha: 1.0)
+        }
+
+        if codexBusy {
+            return Self(leftBoost: 0.10 + (0.06 * wave), rightBoost: 0.03 + (0.02 * counterWave), bridgeAlpha: 0.70)
+        }
+
+        if claudeBusy {
+            return Self(leftBoost: 0.03 + (0.02 * wave), rightBoost: 0.10 + (0.06 * counterWave), bridgeAlpha: 0.70)
+        }
+
+        let rest = 0.02 + (0.015 * wave)
+        return Self(leftBoost: rest, rightBoost: 0.02 + (0.015 * counterWave), bridgeAlpha: 0.45)
     }
 }

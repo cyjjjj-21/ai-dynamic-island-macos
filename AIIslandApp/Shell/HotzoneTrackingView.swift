@@ -5,6 +5,7 @@ final class HotzoneTrackingView: NSView {
     var onPointerExited: (() -> Void)?
     var onMouseDown: ((CGPoint) -> Void)?
     var onEscapeKey: (() -> Void)?
+    var onToggleDiagnostics: (() -> Void)?
     var containsInteractivePoint: ((CGPoint) -> Bool)?
 
     private var globalMonitor: Any?
@@ -118,6 +119,12 @@ final class HotzoneTrackingView: NSView {
     }
 
     private func handleKeyDown(_ event: NSEvent) {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags.contains([.command, .shift]), event.charactersIgnoringModifiers?.lowercased() == "d" {
+            onToggleDiagnostics?()
+            return
+        }
+
         guard event.keyCode == 53 || event.charactersIgnoringModifiers == "\u{1B}" else {
             return
         }

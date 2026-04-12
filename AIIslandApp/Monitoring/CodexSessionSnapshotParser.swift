@@ -28,6 +28,7 @@ enum CodexSessionSnapshotParser {
         sessionID: String,
         fallbackTaskLabel: String
     ) -> CodexSessionSnapshot {
+        var dateContext = DateParsingContext()
         var latestTimestamp: Date?
         var latestModelLabel: String?
         var latestUserPrompt: String?
@@ -55,7 +56,8 @@ enum CodexSessionSnapshotParser {
             }
 
             if let parsedTimestamp = parseDate(
-                json["timestamp"] ?? json["updated_at"] ?? json["updatedAt"] ?? json["ts"]
+                json["timestamp"] ?? json["updated_at"] ?? json["updatedAt"] ?? json["ts"],
+                context: &dateContext
             ) {
                 if let existing = latestTimestamp {
                     latestTimestamp = max(existing, parsedTimestamp)
@@ -148,8 +150,8 @@ enum CodexSessionSnapshotParser {
                     if let rateLimits = payload["rate_limits"] as? [String: Any] {
                         let primary = (rateLimits["primary"] as? [String: Any])?["used_percent"]
                         let secondary = (rateLimits["secondary"] as? [String: Any])?["used_percent"]
-                        fiveHourRatio = number(from: primary).map { clamp($0 / 100.0) }
-                        weeklyRatio = number(from: secondary).map { clamp($0 / 100.0) }
+                        fiveHourRatio = number(from: primary).map(remainingRatio(fromUsedPercent:))
+                        weeklyRatio = number(from: secondary).map(remainingRatio(fromUsedPercent:))
                     }
                 case "agent_message":
                     hasStructuredActivitySignal = true
@@ -372,7 +374,22 @@ enum CodexSessionSnapshotParser {
         }
     }
 
-    private static func parseDate(_ value: Any?) -> Date? {
+    private struct DateParsingContext {
+        let fractional: ISO8601DateFormatter
+        let base: ISO8601DateFormatter
+
+        init() {
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            self.fractional = fractional
+
+            let base = ISO8601DateFormatter()
+            base.formatOptions = [.withInternetDateTime]
+            self.base = base
+        }
+    }
+
+    private static func parseDate(_ value: Any?, context: inout DateParsingContext) -> Date? {
         guard let value else {
             return nil
         }
@@ -388,15 +405,11 @@ enum CodexSessionSnapshotParser {
         }
 
         if let raw = normalizedString(value) {
-            let fractionalFormatter = ISO8601DateFormatter()
-            fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = fractionalFormatter.date(from: raw) {
+            if let date = context.fractional.date(from: raw) {
                 return date
             }
 
-            let baseFormatter = ISO8601DateFormatter()
-            baseFormatter.formatOptions = [.withInternetDateTime]
-            if let date = baseFormatter.date(from: raw) {
+            if let date = context.base.date(from: raw) {
                 return date
             }
         }
@@ -406,6 +419,10 @@ enum CodexSessionSnapshotParser {
 
     private static func clamp(_ value: Double) -> Double {
         min(max(value, 0.0), 1.0)
+    }
+
+    private static func remainingRatio(fromUsedPercent usedPercent: Double) -> Double {
+        clamp(1.0 - (usedPercent / 100.0))
     }
 
 }

@@ -112,7 +112,7 @@ final class ClaudeCodeMonitorSmokeTests: XCTestCase {
         try #"{"type":"assistant","message":{"model":"kimi-k2.5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"README.md"}}]}}"#.data(using: .utf8)?.write(to: transcriptPath)
         try #"{"used_pct":37}"#.data(using: .utf8)?.write(to: bridgePath)
 
-        let oldDate = Date().addingTimeInterval(-16 * 60)
+        let oldDate = Date().addingTimeInterval(-26 * 60)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: sessionPath.path)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: transcriptPath.path)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: bridgePath.path)
@@ -164,7 +164,7 @@ final class ClaudeCodeMonitorSmokeTests: XCTestCase {
         try #"{"type":"assistant","message":{"model":"kimi-k2.5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"README.md"}}]}}"#.data(using: .utf8)?.write(to: transcriptPath)
         try #"{"used_pct":37}"#.data(using: .utf8)?.write(to: bridgePath)
 
-        let oldDate = Date().addingTimeInterval(-31 * 60)
+        let oldDate = Date().addingTimeInterval(-46 * 60)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: sessionPath.path)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: transcriptPath.path)
         try fileManager.setAttributes([.modificationDate: oldDate], ofItemAtPath: bridgePath.path)
@@ -180,5 +180,60 @@ final class ClaudeCodeMonitorSmokeTests: XCTestCase {
         XCTAssertEqual(monitor.claudeState.availability, .statusUnavailable)
         XCTAssertEqual(monitor.claudeState.globalState, .idle)
         XCTAssertEqual(monitor.claudeState.threads.count, 0)
+    }
+
+    func testRefreshNowKeepsLastKnownModelWhenTranscriptTemporarilyDropsModelField() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let claudeDirURL = rootURL.appendingPathComponent(".claude", isDirectory: true)
+        let sessionsDirURL = claudeDirURL.appendingPathComponent("sessions", isDirectory: true)
+        let projectsDirURL = claudeDirURL.appendingPathComponent("projects", isDirectory: true)
+        let bridgeDirURL = rootURL.appendingPathComponent("bridge", isDirectory: true)
+        let cwd = "/workspace/ai-dynamic-island-macos"
+        let encodedCwd = cwd.replacingOccurrences(of: "/", with: "-")
+        let transcriptDirURL = projectsDirURL.appendingPathComponent(encodedCwd, isDirectory: true)
+        let sessionID = "session-model-cache"
+
+        try fileManager.createDirectory(at: sessionsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: transcriptDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bridgeDirURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let sessionPath = sessionsDirURL.appendingPathComponent("\(sessionID).json")
+        let transcriptPath = transcriptDirURL.appendingPathComponent("\(sessionID).jsonl")
+        let bridgePath = bridgeDirURL.appendingPathComponent("claude-ctx-\(sessionID).json")
+
+        let sessionJSON = """
+        {
+          "pid": 4242,
+          "sessionId": "\(sessionID)",
+          "cwd": "\(cwd)",
+          "status": "busy"
+        }
+        """
+        try sessionJSON.data(using: .utf8)?.write(to: sessionPath)
+        try #"{"used_pct":37}"#.data(using: .utf8)?.write(to: bridgePath)
+
+        let withModel = """
+        {"type":"assistant","message":{"model":"kimi-k2.5","stop_reason":"tool_use","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"README.md"}}]}}
+        """
+        try withModel.data(using: .utf8)?.write(to: transcriptPath)
+
+        let monitor = ClaudeCodeMonitor(
+            claudeDirPath: claudeDirURL.path,
+            temporaryDirectoryPath: bridgeDirURL.path,
+            processAliveChecker: { _ in true }
+        )
+        monitor.refreshNow()
+        XCTAssertEqual(monitor.claudeState.threads.first?.modelLabel, "kimi-k2.5")
+
+        let withoutModel = """
+        {"type":"assistant","message":{"stop_reason":"tool_use","content":[{"type":"tool_use","id":"tool-1","name":"Read","input":{"file_path":"README.md"}}]}}
+        """
+        try withoutModel.data(using: .utf8)?.write(to: transcriptPath)
+        monitor.refreshNow()
+
+        XCTAssertEqual(monitor.claudeState.threads.first?.modelLabel, "kimi-k2.5")
     }
 }

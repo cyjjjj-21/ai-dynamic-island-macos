@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum IslandPalette {
+    static let diagnosticsUserDefaultsKey = "AIIslandDiagnosticsEnabled"
     static let hardware = IslandHardwareMetrics.detectFromScreen()
     static let shellWidth: CGFloat = hardware.collapsedShellWidth
     static let shellHeight: CGFloat = hardware.collapsedShellHeight
@@ -14,6 +15,12 @@ enum IslandPalette {
     static let lobeSpacing: CGFloat = physicalNotchWidth
     static let expandedCardWidth: CGFloat = shellWidth
     static let expandedCardTopSpacing: CGFloat = 4
+    static var diagnosticsEnabled: Bool {
+        if ProcessInfo.processInfo.environment["AIISLAND_DIAGNOSTICS"] == "1" {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: diagnosticsUserDefaultsKey)
+    }
     static let expandedCardHitHeight: CGFloat = 220
 
     static let notchCenterXCorrection: CGFloat = 0
@@ -24,17 +31,13 @@ enum IslandPalette {
     static let mascotScale: CGFloat = 0.56
 
     static let shellFill = LinearGradient(
-        colors: [
-            Color(red: 0.160, green: 0.160, blue: 0.168),
-            Color(red: 0.094, green: 0.094, blue: 0.102),
-            Color(red: 0.058, green: 0.058, blue: 0.063)
-        ],
+        colors: [Color.black, Color.black],
         startPoint: .top,
         endPoint: .bottom
     )
 
-    static let shellStroke = Color.white.opacity(0.10)
-    static let shellTopHighlight = Color.white.opacity(0.06)
+    static let shellStroke = Color.white.opacity(0.08)
+    static let shellTopHighlight = Color.clear
     static let shellEdgeHalo = Color.black.opacity(0.16)
     static let shellEdgeHaloRadius: CGFloat = 5
     static let shellEdgeHaloExpandedRadius: CGFloat = 6
@@ -45,6 +48,8 @@ enum IslandPalette {
     static let codexTint = Color(red: 0.58, green: 0.86, blue: 0.96)
     static let claudeTint = Color(red: 0.94, green: 0.66, blue: 0.67)
     static let idleTint = Color.white.opacity(0.70)
+    static let quotaFiveHourTint = Color(red: 0.62, green: 0.90, blue: 0.66)
+    static let quotaWeeklyTint = Color(red: 0.18, green: 0.62, blue: 0.32)
 
     static let titleFont = Font.system(size: 11, weight: .semibold, design: .rounded)
     static let collapsedTitleFont = Font.system(size: 10.5, weight: .semibold, design: .rounded)

@@ -25,6 +25,30 @@
   - `build/release/AIIslandApp-v0.1.0-macos.zip`
   - `sha256: 5267ea60bc1ef6b8743cd5cb995d695b87df64a4502ad3023b2242c9b3778e6d`
 
+## v0.2 Polish In Progress (2026-04-12)
+
+- Completed v0.2 architecture uplift with light hybrid motion:
+  - added shared freshness policy contract in `AIIslandCore` (`3m / 12m / 25m / 45m`)
+  - upgraded shell motion to continuous `phase + progress + interruption policy`
+  - introduced CA-driven shell/glow bridge and mascot resonance matrix while keeping SwiftUI card rendering
+- Completed monitor runtime refactor:
+  - event-first + keepalive poll refresh pipeline
+  - session-level `lastKnownModel` smoothing for transient model loss
+  - status-priority + freshness-score mixed ordering for multi-thread display
+- Added diagnostics tooling for tuning and live verification:
+  - diagnostics panel in expanded card
+  - per-thread freshness stage / source hits visibility
+  - runtime toggle via `Cmd+Shift+D` / `AIISLAND_DIAGNOSTICS=1`
+- Stabilized v0.2 regression tests:
+  - converted Codex monitor smoke fixtures to relative-now timestamps so tests no longer silently rot by calendar date
+  - adjusted motion coordinator phase-band test to deterministic gain/phase checkpoints
+  - full `xcodebuild test` regression green after refresh-policy migration
+- UI defect postmortem (hover expand regression):
+  - root cause: default motion gain too aggressive + `Timer.scheduledTimer` default runloop mode caused early jump and event-loop-dependent stutter under pointer tracking
+  - missed QA step: no guardrail test for "early hover frames must stay in lift/promote bands" and no explicit runloop-mode check for motion timer
+  - systemic correction: added regression test `testDefaultTuningKeepsEarlyHoverExpansionInLiftingOrPromotingBand`; moved motion timer to `.common` runloop mode; reduced default gains and removed first-frame forced step
+  - prevention rule: any interaction-critical motion change must ship with timing-band tests and non-default runloop-mode verification before visual sign-off
+
 ## Completed
 
 ### Task 1: Bootstrap repo and macOS app shell
@@ -541,7 +565,50 @@ The first AppKit shell draft had two real interaction risks that were fixed befo
 - Fix:
   - reduced `expandedCardTopSpacing` from 12 to 4
   - changed `expandedCardWidth` to use `shellWidth` instead of the hardcoded hardware metric
-  - increased `expandedCanvasHeight` from 280 to 340
+- increased `expandedCanvasHeight` from 280 to 340
+
+## Hover/Leave Jank Hotfix (v0.2 Runtime)
+
+- User-visible defect:
+  - pointer enter had ~1s delay before expansion
+  - pointer leave could stall for ~3s before collapse
+- Root cause:
+  - heavy Codex refresh (`readSessionTail + JSON parse + ISO8601 parse`) ran on main actor
+  - `sample` showed main thread blocked in `CodexMonitor.refresh -> CodexSessionSnapshotParser.parseDate -> CFDateFormatter`
+- Fix:
+  - reworked `CodexMonitor` to `event + poll` with async worker refresh and main-thread publish only
+  - added in-flight coalescing and generation guard to avoid stale refresh overwrite
+  - ensured poll timer runs in `.common` mode, preserving updates during tracking loops
+  - moved parser date path from per-line formatter allocation to per-parse formatter reuse:
+    - `CodexSessionSnapshotParser`
+    - `CodexSessionIndexParser`
+  - resolved Swift 6 actor/sendable constraints for the new pipeline
+- Verification:
+  - targeted tests:
+    - `CodexMonitorSmokeTests`
+    - `CodexSessionSnapshotParserTests`
+    - `CodexSessionIndexParserTests`
+  - full regression: `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS'` passed
+  - runtime sample now shows Codex parsing work on `com.aiisland.monitor.codex.worker`, not `com.apple.main-thread`
+
+## Leave Animation Fine-Tune Hook (reserved)
+
+- If we need a later polish pass for "pointer leave feels too abrupt", tune in this order:
+  - interaction delay gate: `ShellInteractionController.graceDelay` (`AIIslandCore/Shell/ShellInteractionController.swift`)
+  - collapse easing speed: `IslandMotionTuning.snapBackGain` (`AIIslandApp/UI/Motion/IslandMotionCoordinator.swift`)
+  - CA visual tail length: `animationDuration(for: .gentleSnapBack)` (`AIIslandApp/UI/Motion/PromotionContainerView.swift`)
+  - card fade threshold: `cardOpacity = clamp((p - 0.34) / 0.58)` (`AIIslandApp/UI/Motion/PromotionContainerView.swift`)
+- Rule:
+  - keep delay + motion + opacity changes bundled in one QA round, otherwise perception often becomes "pause then snap"
+
+## Visual Clarity Pass (collapsed shell + quota colors)
+
+- Collapsed shell now uses pure black fill (`#000`) to fuse with physical notch black; removed top highlight texture to avoid gray-film mismatch.
+- Codex quota strip colors are now semantically separated from agent identity colors:
+  - `5h`: light green
+  - `Weekly`: deep green
+- Goal:
+  - avoid user confusion between "agent identity color" and "quota metric color" while improving notch fusion in default state.
 
 ## Next Recommended Steps
 
