@@ -11,6 +11,31 @@
 
 ## Current Status
 
+### Codex Monitor Hardening In Progress (2026-04-15)
+
+- Reworked the Codex monitor toward the same layered shape proven by the Claude refactor, while keeping Codex-specific realtime orchestration intact:
+  - session discovery and watched-path shaping now live in `CodexSessionCatalog`
+  - bounded tail expansion for large `rollout-*.jsonl` files now lives in `CodexSessionTailReader`
+  - freshness/state/quota/model arbitration now lives in `CodexMonitorArbitrator`
+  - transient per-session model smoothing now uses `CodexCachedModel`
+- Refactored `CodexMonitor` into a thinner runtime shell:
+  - keeps the existing debounce + worker queue + keepalive refresh behavior
+  - keeps Codex-specific session-index fallback semantics instead of copying Claude watcher behavior wholesale
+  - narrows the monitor file so future freshness and ordering changes land in isolated helpers instead of a single long refresh path
+- Locked the extraction with focused regression coverage:
+  - `CodexSessionCatalogTests` for ordering, max-scan cap, and rollout filename thread-ID recovery
+  - `CodexSessionTailReaderTests` for partial-line trimming, adaptive tail growth, and max-window bounding
+  - `CodexMonitorArbitratorTests` for fallback availability, priority ordering, quota selection, and expired-event suppression
+- Verification:
+  - focused Codex regression green:
+    `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/CodexSessionCatalogTests -only-testing:AIIslandAppTests/CodexSessionTailReaderTests -only-testing:AIIslandAppTests/CodexMonitorArbitratorTests -only-testing:AIIslandAppTests/CodexMonitorSmokeTests`
+  - full `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS'` green
+  - validated edge cases:
+    - rollout tails expand only when the recent window is too short to recover structured events
+    - fallback session-index rows still publish `statusUnavailable` instead of pretending the agent is offline
+    - expired event-derived snapshots no longer keep stale fallback threads visible
+    - transient model loss remains isolated per Codex session instead of leaking across threads
+
 ### Claude Monitor Parity Completed (2026-04-15)
 
 - Rebuilt the Claude monitor from a single-session happy path into a multi-session pipeline:
