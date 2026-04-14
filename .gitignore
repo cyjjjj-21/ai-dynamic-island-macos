@@ -2,3 +2,4 @@ DerivedData/
 .DS_Store
 build/
 xcuserdata/
+.worktrees/
