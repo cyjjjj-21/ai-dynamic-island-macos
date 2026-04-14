@@ -14,46 +14,57 @@ final class ClaudeCodeMonitor: ObservableObject {
     )
     @Published private(set) var diagnostics: AgentMonitorDiagnostics
 
-    private var pollTimer: Timer?
-    private var cachedSessionId: String?
-    private var cachedJsonlPath: String?
-    private let fileManager: FileManager
+    private let fileManagerHandle: FileManagerHandle
     private let sessionsDirPath: String
     private let projectsDirPath: String
     private let temporaryDirectoryPath: String
-    private let processAliveChecker: (Int32) -> Bool
+    private let processAliveChecker: @Sendable (Int32) -> Bool
     private let freshnessPolicy: MonitorFreshnessPolicy
     private let keepAlivePollInterval: TimeInterval
     private let eventDebounceInterval: TimeInterval
     private let injectedSignalSource: RealtimeSignalSource?
 
+    private var pollTimer: Timer?
     private var signalSource: RealtimeSignalSource?
     private var pendingRefreshWorkItem: DispatchWorkItem?
     private var lastRefreshAt: Date = .distantPast
-    private var lastKnownModels: [String: CachedModel] = [:]
+    private var lastKnownModels: [String: ClaudeCachedModel] = [:]
+    private var refreshInFlight = false
+    private var refreshDirty = false
+    private var coalescedTrigger = "event"
+    private var refreshGeneration: UInt64 = 0
+    private var activeRefreshGeneration: UInt64 = 0
+    private var isRunning = false
+    private let workerQueue = DispatchQueue(label: "com.aiisland.monitor.claude.worker", qos: .utility)
 
-    private static let claudeDir: String = {
+    private nonisolated static let claudeDir: String = {
         NSHomeDirectory() + "/.claude"
     }()
 
-    private static let transcriptTailBytes: UInt64 = 262_144
+    private nonisolated static let transcriptTailBytes: UInt64 = 262_144
 
-    private struct CachedModel {
-        let label: String
-        let updatedAt: Date
+    private struct FileManagerHandle: @unchecked Sendable {
+        let value: FileManager
+    }
+
+    private struct RefreshComputation: Sendable {
+        let state: AgentState
+        let diagnostics: AgentMonitorDiagnostics
+        let watchedPaths: [String]
+        let updatedModels: [String: ClaudeCachedModel]
     }
 
     init(
         fileManager: FileManager = .default,
         claudeDirPath: String = ClaudeCodeMonitor.claudeDir,
         temporaryDirectoryPath: String = NSTemporaryDirectory(),
-        processAliveChecker: @escaping (Int32) -> Bool = { kill($0, 0) == 0 },
+        processAliveChecker: @escaping @Sendable (Int32) -> Bool = { kill($0, 0) == 0 },
         freshnessPolicy: MonitorFreshnessPolicy = .v02Smooth,
         keepAlivePollInterval: TimeInterval = 2.0,
         eventDebounceInterval: TimeInterval = 0.15,
         signalSource: RealtimeSignalSource? = nil
     ) {
-        self.fileManager = fileManager
+        fileManagerHandle = FileManagerHandle(value: fileManager)
         sessionsDirPath = claudeDirPath + "/sessions"
         projectsDirPath = claudeDirPath + "/projects"
         self.temporaryDirectoryPath = temporaryDirectoryPath
@@ -70,19 +81,28 @@ final class ClaudeCodeMonitor: ObservableObject {
     }
 
     func start() {
+        isRunning = true
         configureSignalSourceIfNeeded()
 
-        pollTimer = Timer.scheduledTimer(withTimeInterval: keepAlivePollInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: keepAlivePollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.scheduleRefresh(trigger: "poll")
             }
         }
+        timer.tolerance = keepAlivePollInterval * 0.25
+        RunLoop.main.add(timer, forMode: .common)
+        pollTimer = timer
         scheduleRefresh(trigger: "startup")
     }
 
     func stop() {
+        isRunning = false
         pendingRefreshWorkItem?.cancel()
         pendingRefreshWorkItem = nil
+        refreshDirty = false
+        refreshInFlight = false
+        refreshGeneration &+= 1
+        activeRefreshGeneration = refreshGeneration
 
         pollTimer?.invalidate()
         pollTimer = nil
@@ -96,14 +116,30 @@ final class ClaudeCodeMonitor: ObservableObject {
     }
 
     func refreshNow() {
-        refresh(trigger: "manual")
+        refreshGeneration &+= 1
+        activeRefreshGeneration = refreshGeneration
+        let result = Self.computeRefresh(
+            fileManager: fileManagerHandle.value,
+            sessionsDirPath: sessionsDirPath,
+            projectsDirPath: projectsDirPath,
+            temporaryDirectoryPath: temporaryDirectoryPath,
+            processAliveChecker: processAliveChecker,
+            freshnessPolicy: freshnessPolicy,
+            cachedModels: lastKnownModels,
+            trigger: "manual"
+        )
+        applyComputation(result)
     }
 
     private func scheduleRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
         let now = Date()
         let age = now.timeIntervalSince(lastRefreshAt)
         if age >= eventDebounceInterval {
-            refresh(trigger: trigger)
+            requestRefresh(trigger: trigger)
             return
         }
 
@@ -111,7 +147,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         let delay = max(0.01, eventDebounceInterval - age)
         let workItem = DispatchWorkItem { [weak self] in
             Task { @MainActor [weak self] in
-                self?.refresh(trigger: trigger)
+                self?.requestRefresh(trigger: trigger)
             }
         }
         pendingRefreshWorkItem = workItem
@@ -133,198 +169,163 @@ final class ClaudeCodeMonitor: ObservableObject {
         signalSource = source
     }
 
-    private func refresh(trigger: String) {
+    private func requestRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
+        if refreshInFlight {
+            refreshDirty = true
+            coalescedTrigger = trigger
+            return
+        }
+
+        launchRefresh(trigger: trigger)
+    }
+
+    private func launchRefresh(trigger: String) {
+        guard isRunning else {
+            return
+        }
+
         pendingRefreshWorkItem?.cancel()
         pendingRefreshWorkItem = nil
         lastRefreshAt = Date()
-        let now = Date()
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        activeRefreshGeneration = generation
+        refreshInFlight = true
+        refreshDirty = false
 
-        guard let session = findActiveSession() else {
-            transitionToOffline(now: now, trigger: trigger)
-            return
-        }
+        let fileManagerHandle = self.fileManagerHandle
+        let sessionsDirPath = self.sessionsDirPath
+        let projectsDirPath = self.projectsDirPath
+        let temporaryDirectoryPath = self.temporaryDirectoryPath
+        let processAliveChecker = self.processAliveChecker
+        let freshnessPolicy = self.freshnessPolicy
+        let cachedModels = self.lastKnownModels
 
-        guard isProcessAlive(pid: session.pid) else {
-            transitionToOffline(now: now, trigger: trigger)
-            return
-        }
-
-        let jsonlPath = resolveJsonlPath(sessionId: session.sessionId, cwd: session.cwd)
-        let transcript = parseTranscriptTail(path: jsonlPath)
-        let transcriptUpdatedAt = fileModificationDate(atPath: jsonlPath)
-        let taskLabel = ClaudeCodeSnapshotParser.resolveTaskLabel(
-            activity: session.activity,
-            transcript: transcript,
-            cwd: session.cwd
-        )
-
-        let bridge = readBridgeFile(sessionId: session.sessionId)
-        let rawState = ClaudeCodeSnapshotParser.resolveGlobalState(
-            activity: session.activity,
-            transcript: transcript
-        )
-
-        let lastSignalAt = [session.observedAt, transcriptUpdatedAt, bridge?.observedAt]
-            .compactMap { $0 }
-            .max()
-        let stage = freshnessPolicy.stage(lastSignalAt: lastSignalAt, now: now)
-        let availability: AgentAvailability = stage == .expired ? .statusUnavailable : .available
-        let state = decayState(rawState, stage: stage)
-        let contextRatio = bridge?.contextRatio
-
-        signalSource?.updateWatchedPaths(
-            watchedPaths(
-                sessionPath: session.filePath,
-                transcriptPath: jsonlPath,
-                bridgePath: bridge?.filePath
+        workerQueue.async { [weak self] in
+            let result = Self.computeRefresh(
+                fileManager: fileManagerHandle.value,
+                sessionsDirPath: sessionsDirPath,
+                projectsDirPath: projectsDirPath,
+                temporaryDirectoryPath: temporaryDirectoryPath,
+                processAliveChecker: processAliveChecker,
+                freshnessPolicy: freshnessPolicy,
+                cachedModels: cachedModels,
+                trigger: trigger
             )
-        )
-
-        let resolvedModelLabel = resolveModelLabel(
-            sessionId: session.sessionId,
-            rawModel: ClaudeCodeSnapshotParser.resolveModelLabel(transcript: transcript),
-            lastSignalAt: lastSignalAt,
-            now: now
-        )
-
-        let shouldRenderThread = ClaudeCodeSnapshotParser.shouldRenderThread(
-            activity: session.activity,
-            transcript: transcript,
-            state: state
-        ) && shouldRenderThread(for: stage)
-
-        let newState = AgentState(
-            kind: .claude,
-            online: true,
-            availability: availability,
-            globalState: state,
-            threads: shouldRenderThread ? [
-                AgentThread(
-                    id: session.sessionId,
-                    taskLabel: taskLabel,
-                    modelLabel: resolvedModelLabel,
-                    contextRatio: contextRatio,
-                    state: state
-                )
-            ] : [],
-            quota: nil
-        )
-
-        if newState != claudeState {
-            claudeState = newState
-        }
-
-        diagnostics = AgentMonitorDiagnostics(
-            kind: .claude,
-            refreshedAt: now,
-            freshnessPolicy: freshnessPolicy,
-            triggerMode: "event+poll/\(trigger)",
-            threads: [
-                MonitorThreadDiagnostics(
-                    id: session.sessionId,
-                    lastSignalAt: lastSignalAt,
-                    stage: stage,
-                    sourceHits: sourceHits(
-                        hasSessionMeta: true,
-                        hasTranscript: transcriptUpdatedAt != nil,
-                        hasBridge: bridge != nil,
-                        hasModel: !resolvedModelLabel.isEmpty
-                    )
-                )
-            ]
-        )
-    }
-
-    private func transitionToOffline(now: Date, trigger: String) {
-        let offlineState = AgentState(
-            kind: .claude,
-            online: false,
-            availability: .offline,
-            globalState: .offline,
-            threads: [],
-            quota: nil
-        )
-        if offlineState != claudeState {
-            claudeState = offlineState
-            cachedSessionId = nil
-            cachedJsonlPath = nil
-        }
-        diagnostics = AgentMonitorDiagnostics(
-            kind: .claude,
-            refreshedAt: now,
-            freshnessPolicy: freshnessPolicy,
-            triggerMode: "event+poll/\(trigger)",
-            threads: []
-        )
-    }
-
-    private struct SessionInfo {
-        let pid: Int32
-        let sessionId: String
-        let cwd: String
-        let activity: ClaudeCodeSessionActivity?
-        let observedAt: Date
-        let filePath: String
-    }
-
-    private func findActiveSession() -> SessionInfo? {
-        guard let files = try? fileManager.contentsOfDirectory(atPath: sessionsDirPath) else {
-            return nil
-        }
-
-        let jsonFiles = files.filter { $0.hasSuffix(".json") }
-        guard !jsonFiles.isEmpty else {
-            return nil
-        }
-
-        var bestFile: String?
-        var bestModDate: Date = .distantPast
-
-        for file in jsonFiles {
-            let path = sessionsDirPath + "/" + file
-            if let attrs = try? fileManager.attributesOfItem(atPath: path),
-               let modDate = attrs[.modificationDate] as? Date,
-               modDate > bestModDate
-            {
-                bestModDate = modDate
-                bestFile = path
+            Task { @MainActor [weak self] in
+                self?.finishRefresh(result: result, generation: generation)
             }
         }
+    }
 
-        guard let filePath = bestFile,
-              let data = fileManager.contents(atPath: filePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let pid = json["pid"] as? Int,
-              let sessionId = json["sessionId"] as? String,
-              let cwd = json["cwd"] as? String
-        else {
-            return nil
+    private func finishRefresh(result: RefreshComputation, generation: UInt64) {
+        guard isRunning else {
+            return
+        }
+        guard generation == activeRefreshGeneration else {
+            return
         }
 
-        return SessionInfo(
-            pid: Int32(pid),
-            sessionId: sessionId,
-            cwd: cwd,
-            activity: ClaudeCodeSnapshotParser.parseSessionActivity(from: data),
-            observedAt: bestModDate,
-            filePath: filePath
+        applyComputation(result)
+        refreshInFlight = false
+
+        if refreshDirty {
+            refreshDirty = false
+            launchRefresh(trigger: coalescedTrigger)
+        }
+    }
+
+    private func applyComputation(_ result: RefreshComputation) {
+        if claudeState != result.state {
+            claudeState = result.state
+        }
+        diagnostics = result.diagnostics
+        lastKnownModels = result.updatedModels
+        signalSource?.updateWatchedPaths(result.watchedPaths)
+    }
+
+    private func baseWatchedPaths() -> [String] {
+        [
+            sessionsDirPath,
+            projectsDirPath,
+            temporaryDirectoryPath,
+        ]
+    }
+
+    private nonisolated static func computeRefresh(
+        fileManager: FileManager,
+        sessionsDirPath: String,
+        projectsDirPath: String,
+        temporaryDirectoryPath: String,
+        processAliveChecker: @Sendable (Int32) -> Bool,
+        freshnessPolicy: MonitorFreshnessPolicy,
+        cachedModels: [String: ClaudeCachedModel],
+        trigger: String
+    ) -> RefreshComputation {
+        let candidates = ClaudeSessionCatalog.loadCandidates(
+            fileManager: fileManager,
+            sessionsDirPath: sessionsDirPath
+        )
+        let liveCandidates = candidates.filter { processAliveChecker($0.pid) }
+
+        let snapshots = liveCandidates.map { candidate in
+            let transcriptPath = resolveJsonlPath(
+                fileManager: fileManager,
+                sessionID: candidate.sessionID,
+                cwd: candidate.cwd,
+                projectsDirPath: projectsDirPath
+            )
+
+            return ClaudeMonitorSessionSnapshot(
+                candidate: candidate,
+                transcript: parseTranscriptTail(path: transcriptPath),
+                transcriptUpdatedAt: fileModificationDate(
+                    fileManager: fileManager,
+                    atPath: transcriptPath
+                ),
+                transcriptPath: transcriptPath,
+                bridge: readBridgeFile(
+                    fileManager: fileManager,
+                    sessionID: candidate.sessionID,
+                    temporaryDirectoryPath: temporaryDirectoryPath
+                )
+            )
+        }
+
+        let result = ClaudeMonitorArbitrator.compute(
+            snapshots: snapshots,
+            baseWatchedPaths: [
+                sessionsDirPath,
+                projectsDirPath,
+                temporaryDirectoryPath,
+            ],
+            cachedModels: cachedModels,
+            freshnessPolicy: freshnessPolicy,
+            now: Date(),
+            trigger: trigger
+        )
+
+        return RefreshComputation(
+            state: result.state,
+            diagnostics: result.diagnostics,
+            watchedPaths: result.watchedPaths,
+            updatedModels: result.updatedModels
         )
     }
 
-    private func isProcessAlive(pid: Int32) -> Bool {
-        processAliveChecker(pid)
-    }
-
-    private func resolveJsonlPath(sessionId: String, cwd: String) -> String? {
-        if let cached = cachedJsonlPath, cachedSessionId == sessionId {
-            return cached
-        }
-
+    private nonisolated static func resolveJsonlPath(
+        fileManager: FileManager,
+        sessionID: String,
+        cwd: String,
+        projectsDirPath: String
+    ) -> String? {
         let encodedCwd = encodeCwd(cwd)
-        let directPath = projectsDirPath + "/" + encodedCwd + "/" + sessionId + ".jsonl"
+        let directPath = projectsDirPath + "/" + encodedCwd + "/" + sessionID + ".jsonl"
         if fileManager.fileExists(atPath: directPath) {
-            cachedSessionId = sessionId
-            cachedJsonlPath = directPath
             return directPath
         }
 
@@ -333,10 +334,8 @@ final class ClaudeCodeMonitor: ObservableObject {
         }
 
         for dir in projectDirs {
-            let candidate = projectsDirPath + "/" + dir + "/" + sessionId + ".jsonl"
+            let candidate = projectsDirPath + "/" + dir + "/" + sessionID + ".jsonl"
             if fileManager.fileExists(atPath: candidate) {
-                cachedSessionId = sessionId
-                cachedJsonlPath = candidate
                 return candidate
             }
         }
@@ -346,11 +345,11 @@ final class ClaudeCodeMonitor: ObservableObject {
 
     /// Encode a cwd path the same way Claude Code does:
     /// "/Users/foo/bar" -> "-Users-foo-bar"
-    private func encodeCwd(_ cwd: String) -> String {
+    private nonisolated static func encodeCwd(_ cwd: String) -> String {
         cwd.replacingOccurrences(of: "/", with: "-")
     }
 
-    private func parseTranscriptTail(path: String?) -> ClaudeCodeTranscriptSnapshot {
+    private nonisolated static func parseTranscriptTail(path: String?) -> ClaudeCodeTranscriptSnapshot {
         guard let path,
               let handle = FileHandle(forReadingAtPath: path)
         else {
@@ -395,15 +394,13 @@ final class ClaudeCodeMonitor: ObservableObject {
         return ClaudeCodeSnapshotParser.parseTranscriptTail(normalizedTail)
     }
 
-    private struct BridgeData {
-        let contextRatio: Double?
-        let observedAt: Date?
-        let filePath: String
-    }
-
-    private func readBridgeFile(sessionId: String) -> BridgeData? {
+    private nonisolated static func readBridgeFile(
+        fileManager: FileManager,
+        sessionID: String,
+        temporaryDirectoryPath: String
+    ) -> ClaudeBridgeSnapshot? {
         let bridgePath = URL(fileURLWithPath: temporaryDirectoryPath, isDirectory: true)
-            .appendingPathComponent("claude-ctx-" + sessionId + ".json")
+            .appendingPathComponent("claude-ctx-" + sessionID + ".json")
             .path
 
         guard let data = fileManager.contents(atPath: bridgePath),
@@ -412,96 +409,21 @@ final class ClaudeCodeMonitor: ObservableObject {
             return nil
         }
 
-        let observedAt = fileModificationDate(atPath: bridgePath)
+        let observedAt = fileModificationDate(fileManager: fileManager, atPath: bridgePath)
         let contextRatio: Double? = (json["used_pct"] as? Int)
             .map { min(Double($0) / 100.0, 1.0) }
 
-        return BridgeData(contextRatio: contextRatio, observedAt: observedAt, filePath: bridgePath)
+        return ClaudeBridgeSnapshot(
+            contextRatio: contextRatio,
+            observedAt: observedAt,
+            filePath: bridgePath
+        )
     }
 
-    private func decayState(_ rawState: AgentGlobalState, stage: MonitorFreshnessStage) -> AgentGlobalState {
-        switch stage {
-        case .live:
-            return rawState
-        case .cooling, .recentIdle, .staleHidden, .expired:
-            return .idle
-        }
-    }
-
-    private func shouldRenderThread(for stage: MonitorFreshnessStage) -> Bool {
-        switch stage {
-        case .live, .cooling, .recentIdle:
-            return true
-        case .staleHidden, .expired:
-            return false
-        }
-    }
-
-    private func resolveModelLabel(
-        sessionId: String,
-        rawModel: String,
-        lastSignalAt: Date?,
-        now: Date
-    ) -> String {
-        let cacheWindow = freshnessPolicy.visibleIdleWindow
-        if !rawModel.isEmpty {
-            lastKnownModels[sessionId] = CachedModel(label: rawModel, updatedAt: lastSignalAt ?? now)
-            return rawModel
-        }
-
-        guard let cached = lastKnownModels[sessionId] else {
-            return rawModel
-        }
-
-        if now.timeIntervalSince(cached.updatedAt) > cacheWindow {
-            lastKnownModels.removeValue(forKey: sessionId)
-            return rawModel
-        }
-
-        return cached.label
-    }
-
-    private func baseWatchedPaths() -> [String] {
-        [
-            sessionsDirPath,
-            projectsDirPath,
-            temporaryDirectoryPath,
-        ]
-    }
-
-    private func watchedPaths(
-        sessionPath: String,
-        transcriptPath: String?,
-        bridgePath: String?
-    ) -> [String] {
-        var paths = baseWatchedPaths()
-        paths.append(sessionPath)
-        if let transcriptPath {
-            paths.append(transcriptPath)
-            paths.append((transcriptPath as NSString).deletingLastPathComponent)
-        }
-        if let bridgePath {
-            paths.append(bridgePath)
-        }
-        return paths
-    }
-
-    private func sourceHits(
-        hasSessionMeta: Bool,
-        hasTranscript: Bool,
-        hasBridge: Bool,
-        hasModel: Bool
-    ) -> [String] {
-        var hits: [String] = []
-        if hasSessionMeta { hits.append("session") }
-        if hasTranscript { hits.append("transcript") }
-        if hasBridge { hits.append("bridge") }
-        if hasModel { hits.append("model") }
-        if hits.isEmpty { hits.append("none") }
-        return hits
-    }
-
-    private func fileModificationDate(atPath path: String?) -> Date? {
+    private nonisolated static func fileModificationDate(
+        fileManager: FileManager,
+        atPath path: String?
+    ) -> Date? {
         guard let path,
               let attrs = try? fileManager.attributesOfItem(atPath: path)
         else {

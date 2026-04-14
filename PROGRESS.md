@@ -11,6 +11,30 @@
 
 ## Current Status
 
+### Claude Monitor Parity Completed (2026-04-15)
+
+- Rebuilt the Claude monitor from a single-session happy path into a multi-session pipeline:
+  - session discovery now lives in `ClaudeSessionCatalog`
+  - freshness/state/model arbitration now lives in `ClaudeMonitorArbitrator`
+  - shared per-session model smoothing now uses `ClaudeCachedModel`
+- Refactored `ClaudeCodeMonitor` into a thinner runtime shell:
+  - keeps event debounce + keepalive poll behavior
+  - runs refresh computation through a worker queue instead of doing all filesystem work on the main actor
+  - bounds realtime watched-session fanout while always keeping the base Claude directories under watch
+- Locked the new Claude behavior with dedicated tests:
+  - `ClaudeSessionCatalogTests` for ordering, malformed-file skipping, and multi-session retention
+  - `ClaudeMonitorArbitratorTests` for freshness decay, availability transitions, deterministic tie-breaks, and per-session model cache smoothing
+  - `ClaudeCodeMonitorSmokeTests` for multi-live-session rendering and visible primary-thread switching
+- Verification:
+  - focused Claude regression green:
+    `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/ClaudeSessionCatalogTests -only-testing:AIIslandAppTests/ClaudeMonitorArbitratorTests -only-testing:AIIslandAppTests/ClaudeCodeMonitorSmokeTests`
+  - full `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS'` green
+  - validated edge cases:
+    - multiple live Claude sessions render deterministically
+    - cooling/recent-idle sessions decay to `idle` without disappearing too early
+    - fully expired sessions collapse to `statusUnavailable`
+    - transient transcript model loss keeps the last known model per session instead of leaking across sessions
+
 ### v0.2 Polish In Progress (2026-04-12)
 
 - Completed v0.2 architecture uplift with light hybrid motion:

@@ -236,4 +236,190 @@ final class ClaudeCodeMonitorSmokeTests: XCTestCase {
 
         XCTAssertEqual(monitor.claudeState.threads.first?.modelLabel, "kimi-k2.5")
     }
+
+    func testRefreshNowBuildsMultipleClaudeThreadsWhenTwoLiveSessionsExist() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let claudeDirURL = rootURL.appendingPathComponent(".claude", isDirectory: true)
+        let sessionsDirURL = claudeDirURL.appendingPathComponent("sessions", isDirectory: true)
+        let projectsDirURL = claudeDirURL.appendingPathComponent("projects", isDirectory: true)
+        let bridgeDirURL = rootURL.appendingPathComponent("bridge", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: projectsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bridgeDirURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-a",
+            cwd: "/workspace/alpha",
+            status: "busy",
+            waitingFor: nil,
+            model: "claude-sonnet-4",
+            summary: "Inspect alpha monitor chain",
+            usedPercent: 21,
+            modifiedAt: Date().addingTimeInterval(-5)
+        )
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-b",
+            cwd: "/workspace/beta",
+            status: "waiting",
+            waitingFor: "approve Edit",
+            model: "kimi-k2.5",
+            summary: "Inspect beta monitor chain",
+            usedPercent: 63,
+            modifiedAt: Date()
+        )
+
+        let monitor = ClaudeCodeMonitor(
+            claudeDirPath: claudeDirURL.path,
+            temporaryDirectoryPath: bridgeDirURL.path,
+            processAliveChecker: { _ in true }
+        )
+
+        monitor.refreshNow()
+
+        XCTAssertEqual(monitor.claudeState.availability, .available)
+        XCTAssertEqual(monitor.claudeState.threads.count, 2)
+        XCTAssertEqual(monitor.claudeState.threads.map(\.id), ["session-b", "session-a"])
+        XCTAssertEqual(monitor.claudeState.globalState, .attention)
+    }
+
+    func testRefreshNowSwitchesVisiblePrimaryThreadWhenLatestLiveSessionChanges() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let claudeDirURL = rootURL.appendingPathComponent(".claude", isDirectory: true)
+        let sessionsDirURL = claudeDirURL.appendingPathComponent("sessions", isDirectory: true)
+        let projectsDirURL = claudeDirURL.appendingPathComponent("projects", isDirectory: true)
+        let bridgeDirURL = rootURL.appendingPathComponent("bridge", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: projectsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bridgeDirURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let older = Date().addingTimeInterval(-20)
+        let newer = Date().addingTimeInterval(-5)
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-a",
+            cwd: "/workspace/alpha",
+            status: "waiting",
+            waitingFor: "approve Bash",
+            model: "claude-sonnet-4",
+            summary: "Inspect alpha monitor chain",
+            usedPercent: 21,
+            modifiedAt: newer
+        )
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-b",
+            cwd: "/workspace/beta",
+            status: "waiting",
+            waitingFor: "approve Edit",
+            model: "kimi-k2.5",
+            summary: "Inspect beta monitor chain",
+            usedPercent: 63,
+            modifiedAt: older
+        )
+
+        let monitor = ClaudeCodeMonitor(
+            claudeDirPath: claudeDirURL.path,
+            temporaryDirectoryPath: bridgeDirURL.path,
+            processAliveChecker: { _ in true }
+        )
+
+        monitor.refreshNow()
+        XCTAssertEqual(monitor.claudeState.threads.map(\.id), ["session-a", "session-b"])
+
+        let sessionBPath = sessionsDirURL.appendingPathComponent("session-b.json")
+        let transcriptBPath = projectsDirURL
+            .appendingPathComponent("-workspace-beta", isDirectory: true)
+            .appendingPathComponent("session-b.jsonl")
+        let bridgeBPath = bridgeDirURL.appendingPathComponent("claude-ctx-session-b.json")
+        let promoted = Date().addingTimeInterval(15)
+        try fileManager.setAttributes([.modificationDate: promoted], ofItemAtPath: sessionBPath.path)
+        try fileManager.setAttributes([.modificationDate: promoted], ofItemAtPath: transcriptBPath.path)
+        try fileManager.setAttributes([.modificationDate: promoted], ofItemAtPath: bridgeBPath.path)
+
+        monitor.refreshNow()
+        XCTAssertEqual(monitor.claudeState.threads.map(\.id), ["session-b", "session-a"])
+        XCTAssertEqual(monitor.claudeState.globalState, .attention)
+    }
+
+    private func makeClaudeSessionFixture(
+        fileManager: FileManager,
+        sessionsDirURL: URL,
+        projectsDirURL: URL,
+        bridgeDirURL: URL,
+        sessionID: String,
+        cwd: String,
+        status: String,
+        waitingFor: String?,
+        model: String,
+        summary: String,
+        usedPercent: Int,
+        modifiedAt: Date
+    ) throws {
+        let sessionPath = sessionsDirURL.appendingPathComponent("\(sessionID).json")
+        let encodedCwd = cwd.replacingOccurrences(of: "/", with: "-")
+        let transcriptDirURL = projectsDirURL.appendingPathComponent(encodedCwd, isDirectory: true)
+        let transcriptPath = transcriptDirURL.appendingPathComponent("\(sessionID).jsonl")
+        let bridgePath = bridgeDirURL.appendingPathComponent("claude-ctx-\(sessionID).json")
+
+        try fileManager.createDirectory(at: transcriptDirURL, withIntermediateDirectories: true)
+
+        let waitingField: String
+        if let waitingFor {
+            waitingField = #","waitingFor":"\#(waitingFor)""#
+        } else {
+            waitingField = ""
+        }
+
+        let sessionJSON = #"""
+        {
+          "pid": 4242,
+          "sessionId": "\#(sessionID)",
+          "cwd": "\#(cwd)",
+          "status": "\#(status)"\#(waitingField)
+        }
+        """#
+        try sessionJSON.data(using: .utf8)?.write(to: sessionPath)
+
+        let transcriptJSONL = #"""
+        {"type":"assistant","message":{"model":"\#(model)","usage":{"input_tokens":128},"stop_reason":"tool_use","content":[{"type":"tool_use","id":"tool-\#(sessionID)","name":"Read","input":{"file_path":"README.md"}}]}}
+        {"type":"task-summary","summary":"\#(summary)","timestamp":"2026-04-11T10:00:00Z"}
+        """#
+        try transcriptJSONL.data(using: .utf8)?.write(to: transcriptPath)
+
+        let bridgeJSON = """
+        {
+          "used_pct": \(usedPercent)
+        }
+        """
+        try bridgeJSON.data(using: .utf8)?.write(to: bridgePath)
+
+        try fileManager.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: sessionPath.path)
+        try fileManager.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: transcriptPath.path)
+        try fileManager.setAttributes([.modificationDate: modifiedAt], ofItemAtPath: bridgePath.path)
+    }
 }
