@@ -34,6 +34,7 @@ final class ClaudeCodeMonitor: ObservableObject {
     private var coalescedTrigger = "event"
     private var refreshGeneration: UInt64 = 0
     private var activeRefreshGeneration: UInt64 = 0
+    private var runGeneration: UInt64 = 0
     private var isRunning = false
     private let workerQueue = DispatchQueue(label: "com.aiisland.monitor.claude.worker", qos: .utility)
 
@@ -53,6 +54,24 @@ final class ClaudeCodeMonitor: ObservableObject {
         let watchedPaths: [String]
         let updatedModels: [String: ClaudeCachedModel]
     }
+
+#if DEBUG
+    struct RefreshDebugState {
+        let refreshInFlight: Bool
+        let refreshDirty: Bool
+        let activeRefreshGeneration: UInt64
+        let runGeneration: UInt64
+    }
+
+    var debugRefreshState: RefreshDebugState {
+        RefreshDebugState(
+            refreshInFlight: refreshInFlight,
+            refreshDirty: refreshDirty,
+            activeRefreshGeneration: activeRefreshGeneration,
+            runGeneration: runGeneration
+        )
+    }
+#endif
 
     init(
         fileManager: FileManager = .default,
@@ -81,6 +100,7 @@ final class ClaudeCodeMonitor: ObservableObject {
     }
 
     func start() {
+        runGeneration &+= 1
         isRunning = true
         configureSignalSourceIfNeeded()
 
@@ -97,6 +117,7 @@ final class ClaudeCodeMonitor: ObservableObject {
 
     func stop() {
         isRunning = false
+        runGeneration &+= 1
         pendingRefreshWorkItem?.cancel()
         pendingRefreshWorkItem = nil
         refreshDirty = false
@@ -193,6 +214,7 @@ final class ClaudeCodeMonitor: ObservableObject {
         lastRefreshAt = Date()
         refreshGeneration &+= 1
         let generation = refreshGeneration
+        let runGeneration = self.runGeneration
         activeRefreshGeneration = generation
         refreshInFlight = true
         refreshDirty = false
@@ -217,16 +239,32 @@ final class ClaudeCodeMonitor: ObservableObject {
                 trigger: trigger
             )
             Task { @MainActor [weak self] in
-                self?.finishRefresh(result: result, generation: generation)
+                self?.finishRefresh(
+                    result: result,
+                    generation: generation,
+                    runGeneration: runGeneration
+                )
             }
         }
     }
 
-    private func finishRefresh(result: RefreshComputation, generation: UInt64) {
+    private func finishRefresh(
+        result: RefreshComputation,
+        generation: UInt64,
+        runGeneration: UInt64
+    ) {
         guard isRunning else {
             return
         }
+        guard runGeneration == self.runGeneration else {
+            return
+        }
         guard generation == activeRefreshGeneration else {
+            refreshInFlight = false
+            if refreshDirty {
+                refreshDirty = false
+                launchRefresh(trigger: coalescedTrigger)
+            }
             return
         }
 

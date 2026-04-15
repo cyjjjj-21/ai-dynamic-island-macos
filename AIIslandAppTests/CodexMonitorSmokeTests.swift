@@ -390,4 +390,306 @@ final class CodexMonitorSmokeTests: XCTestCase {
 
         XCTAssertEqual(monitor.codexState.threads.first?.modelLabel, "gpt-5.4")
     }
+
+    func testRefreshNowIgnoresLiveSubagentThreadSessions() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDayURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("15", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let mainThreadID = "thread-main"
+        let subagentThreadID = "019d91b0-3122-74b1-af47-c94cdaac39cf"
+        let mainTime = Date().addingTimeInterval(-30)
+        let subagentTime = Date()
+        let sessionIndexJSONL = """
+        {"id":"\(mainThreadID)","thread_name":"评估 ai dynamic island 优化方向","updated_at":"\(isoString(mainTime))"}
+        {"id":"\(subagentThreadID)","thread_name":"Review concurrency fix","updated_at":"\(isoString(subagentTime))"}
+        """
+        try sessionIndexJSONL.data(using: .utf8)?.write(
+            to: rootURL.appendingPathComponent("session_index.jsonl")
+        )
+
+        let mainJSONL = """
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(-2)))","type":"turn_context","payload":{"turn_id":"turn-main","model":"gpt-5.4"}}
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(-1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-main","content":[{"type":"input_text","text":"重启 ai 灵动岛我检查下"}]}}
+        {"timestamp":"\(isoString(mainTime))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-main"}}
+        """
+        try mainJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(mainThreadID).jsonl")
+        )
+
+        let subagentJSONL = """
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-3)))","type":"session_meta","payload":{"id":"\(subagentThreadID)","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"thread_spawn":{"parent_thread_id":"\(mainThreadID)","depth":1,"agent_nickname":"Zeno","agent_role":"explorer"}}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-2)))","type":"turn_context","payload":{"turn_id":"turn-subagent","model":"gpt-5.4-mini"}}
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-subagent","content":[{"type":"input_text","text":"Please re-review the updated version of the same files after fixes were applied."}]}}
+        {"timestamp":"\(isoString(subagentTime))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-subagent"}}
+        """
+        try subagentJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(subagentThreadID).jsonl")
+        )
+
+        let monitor = CodexMonitor(codexHomePath: rootURL.path)
+        monitor.refreshNow()
+
+        XCTAssertEqual(monitor.codexState.threads.count, 1)
+        XCTAssertEqual(monitor.codexState.threads.first?.id, mainThreadID)
+        XCTAssertEqual(monitor.codexState.threads.first?.taskLabel, "重启 ai 灵动岛我检查下")
+    }
+
+    func testRefreshNowIgnoresIndexedSubagentThreadWhenSessionHeaderLineIsIncomplete() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDayURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("15", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let mainThreadID = "thread-main"
+        let subagentThreadID = "thread-subagent-incomplete"
+        let mainTime = Date().addingTimeInterval(-30)
+        let subagentTime = Date()
+        let sessionIndexJSONL = """
+        {"id":"\(mainThreadID)","thread_name":"评估 ai dynamic island 优化方向","updated_at":"\(isoString(mainTime))"}
+        {"id":"\(subagentThreadID)","thread_name":"Please re-review the updated version...","updated_at":"\(isoString(subagentTime))"}
+        """
+        try sessionIndexJSONL.data(using: .utf8)?.write(
+            to: rootURL.appendingPathComponent("session_index.jsonl")
+        )
+
+        let mainJSONL = """
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(-2)))","type":"turn_context","payload":{"turn_id":"turn-main","model":"gpt-5.4"}}
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(-1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-main","content":[{"type":"input_text","text":"重启 ai 灵动岛我检查下"}]}}
+        {"timestamp":"\(isoString(mainTime))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-main"}}
+        """
+        try mainJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(mainThreadID).jsonl")
+        )
+
+        let incompleteSubagentHeader = """
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-3)))","type":"session_meta","payload":{"id":"\(subagentThreadID)","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"thread_spawn":{"parent_thread_id":"\(mainThreadID)","depth":1,"agent_nickname":"Zeno","agent_role":"explorer"}}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        """
+        let incompleteHeaderWithoutTrailingNewline = String(incompleteSubagentHeader.dropLast())
+        try incompleteHeaderWithoutTrailingNewline.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(subagentThreadID).jsonl")
+        )
+
+        let monitor = CodexMonitor(codexHomePath: rootURL.path)
+        monitor.refreshNow()
+
+        XCTAssertEqual(monitor.codexState.threads.count, 1)
+        XCTAssertEqual(monitor.codexState.threads.first?.id, mainThreadID)
+        XCTAssertEqual(monitor.codexState.threads.first?.taskLabel, "重启 ai 灵动岛我检查下")
+    }
+
+    func testManualRefreshDuringInFlightRefreshDoesNotBlockLaterEventRefreshes() throws {
+        let blocked = expectation(description: "startup refresh is blocked")
+        let fileManager = BlockingFileManager { path in
+            if path.hasSuffix("/session_index.jsonl") {
+                blocked.fulfill()
+            }
+        }
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDayURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("11", isDirectory: true)
+        try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let indexPath = rootURL.appendingPathComponent("session_index.jsonl").path
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-a",
+            taskLabel: "startup refresh",
+            signalAt: Date().addingTimeInterval(-30),
+            model: "gpt-5.4"
+        )
+
+        let signalSource = TestRealtimeSignalSource()
+        let monitor = CodexMonitor(
+            fileManager: fileManager,
+            codexHomePath: rootURL.path,
+            keepAlivePollInterval: 60,
+            eventDebounceInterval: 0.01,
+            signalSource: signalSource
+        )
+
+        fileManager.blockNextRead(atPath: indexPath)
+        monitor.start()
+        wait(for: [blocked], timeout: 1.0)
+
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-b",
+            taskLabel: "manual refresh",
+            signalAt: Date(),
+            model: "gpt-5.4-mini"
+        )
+        monitor.refreshNow()
+        XCTAssertEqual(monitor.codexState.threads.first?.id, "thread-b")
+
+        fileManager.releaseBlockedRead()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-c",
+            taskLabel: "event refresh",
+            signalAt: Date().addingTimeInterval(1),
+            model: "gpt-5.3-codex"
+        )
+        signalSource.emit()
+
+        assertEventually {
+            monitor.codexState.threads.first?.id == "thread-c"
+        }
+        monitor.stop()
+    }
+
+    func testRestartWhileStaleRefreshCompletesDoesNotDropCurrentInFlightGate() throws {
+        let firstBlocked = expectation(description: "first startup refresh is blocked")
+        let secondBlocked = expectation(description: "second startup refresh is blocked")
+        let blockCounter = ReadBlockCounter()
+        let fileManager = BlockingFileManager { path in
+            guard path.hasSuffix("/session_index.jsonl") else {
+                return
+            }
+
+            let blockCount = blockCounter.increment()
+            if blockCount == 1 {
+                firstBlocked.fulfill()
+            } else if blockCount == 2 {
+                secondBlocked.fulfill()
+            }
+        }
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDayURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("11", isDirectory: true)
+        try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let indexPath = rootURL.appendingPathComponent("session_index.jsonl").path
+        let signalSource = TestRealtimeSignalSource()
+        let monitor = CodexMonitor(
+            fileManager: fileManager,
+            codexHomePath: rootURL.path,
+            keepAlivePollInterval: 60,
+            eventDebounceInterval: 0.01,
+            signalSource: signalSource
+        )
+
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-a",
+            taskLabel: "first startup refresh",
+            signalAt: Date().addingTimeInterval(-30),
+            model: "gpt-5.4"
+        )
+
+        fileManager.blockNextRead(atPath: indexPath)
+        monitor.start()
+        wait(for: [firstBlocked], timeout: 1.0)
+
+        monitor.stop()
+
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-b",
+            taskLabel: "second startup refresh",
+            signalAt: Date(),
+            model: "gpt-5.4-mini"
+        )
+
+        fileManager.blockNextRead(atPath: indexPath)
+        monitor.start()
+        fileManager.releaseBlockedRead()
+        wait(for: [secondBlocked], timeout: 1.0)
+
+        try writeCodexFixture(
+            fileManager: fileManager,
+            rootURL: rootURL,
+            sessionsDayURL: sessionsDayURL,
+            threadID: "thread-c",
+            taskLabel: "event refresh after restart",
+            signalAt: Date().addingTimeInterval(1),
+            model: "gpt-5.3-codex"
+        )
+        signalSource.emit()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        let debugState = monitor.debugRefreshState
+        XCTAssertTrue(debugState.refreshInFlight)
+        XCTAssertTrue(debugState.refreshDirty)
+
+        fileManager.releaseBlockedRead()
+        assertEventually {
+            monitor.codexState.threads.first?.id == "thread-c"
+        }
+        monitor.stop()
+    }
+
+    private func writeCodexFixture(
+        fileManager: FileManager,
+        rootURL: URL,
+        sessionsDayURL: URL,
+        threadID: String,
+        taskLabel: String,
+        signalAt: Date,
+        model: String
+    ) throws {
+        let signalTimestamp = isoString(signalAt)
+        let sessionIndexJSONL = """
+        {"id":"\(threadID)","thread_name":"\(taskLabel)","updated_at":"\(signalTimestamp)"}
+        """
+        try sessionIndexJSONL.data(using: .utf8)?.write(
+            to: rootURL.appendingPathComponent("session_index.jsonl")
+        )
+
+        if let enumerator = fileManager.enumerator(
+            at: sessionsDayURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) {
+            for case let existingURL as URL in enumerator where existingURL.pathExtension == "jsonl" {
+                try? fileManager.removeItem(at: existingURL)
+            }
+        }
+
+        let sessionJSONL = """
+        {"timestamp":"\(signalTimestamp)","type":"turn_context","payload":{"turn_id":"turn-1","model":"\(model)"}}
+        {"timestamp":"\(isoString(signalAt.addingTimeInterval(1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-1","content":[{"type":"input_text","text":"\(taskLabel)"}]}}
+        {"timestamp":"\(isoString(signalAt.addingTimeInterval(2)))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+        """
+        try sessionJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(threadID).jsonl")
+        )
+    }
 }

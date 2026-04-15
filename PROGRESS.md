@@ -11,7 +11,7 @@
 
 ## Current Status
 
-### Codex Monitor Hardening In Progress (2026-04-15)
+### Codex Monitor Hardening Completed (2026-04-15)
 
 - Reworked the Codex monitor toward the same layered shape proven by the Claude refactor, while keeping Codex-specific realtime orchestration intact:
   - session discovery and watched-path shaping now live in `CodexSessionCatalog`
@@ -35,6 +35,22 @@
     - fallback session-index rows still publish `statusUnavailable` instead of pretending the agent is offline
     - expired event-derived snapshots no longer keep stale fallback threads visible
     - transient model loss remains isolated per Codex session instead of leaking across threads
+    - stale in-flight refreshes no longer overwrite newer manual or event-triggered refresh results after restart
+    - subagent review threads no longer surface as main Codex task rows such as `Please re-review...`
+    - subagent detection now survives UTF-8 truncation windows and oversized first `session_meta` lines
+
+### Claude/Codex Realtime Guardrails Completed (2026-04-15)
+
+- Added shared regression helpers for monitor concurrency checks so both monitor pipelines now lock the same refresh-ordering guarantees.
+- Hardened refresh lifecycle behavior in both monitor shells:
+  - startup/manual/event refreshes now preserve the newest visible state when older worker-queue results complete late
+  - restart while a stale refresh is still blocked no longer drops the current in-flight gate
+- Added Codex-specific noise suppression for real-world multi-agent sessions:
+  - lightweight session-head reads detect `session_meta` subagent markers before tail parsing
+  - subagent-originated review prompts are filtered out of the primary thread list and watched-path set
+- Verification:
+  - focused smoke regressions green for both Claude and Codex monitor concurrency paths
+  - full `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS'` green after the guardrail pass
 
 ### Claude Monitor Parity Completed (2026-04-15)
 

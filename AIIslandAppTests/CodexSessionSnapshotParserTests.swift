@@ -112,6 +112,82 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
         XCTAssertEqual(snapshot.state, .working)
     }
 
+    func testIsSubagentSessionDetectsThreadSpawnMarkerFromSessionMeta() {
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"019d91b0-3122-74b1-af47-c94cdaac39cf","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"thread_spawn":{"parent_thread_id":"019d8cc2-ffd2-7140-a276-58a78a17655c","depth":1,"agent_nickname":"Zeno","agent_role":"explorer"}}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+
+        XCTAssertTrue(CodexSessionSnapshotParser.isSubagentSession(jsonl))
+    }
+
+    func testIsSubagentSessionDetectsSourceSubagentWithoutThreadSpawnMarker() {
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-subagent","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"parent_thread_id":"thread-main","agent_nickname":"Zeno","agent_role":"explorer"}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+
+        XCTAssertTrue(CodexSessionSnapshotParser.isSubagentSession(jsonl))
+    }
+
+    func testIsSubagentSessionIgnoresNonDictionarySubagentField() {
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-main","cwd":"/Users/chenyuanjie/developer","source":{"subagent":false}}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4"}}
+        """
+
+        XCTAssertFalse(CodexSessionSnapshotParser.isSubagentSession(jsonl))
+    }
+
+    func testHeadReaderExtendsPastInitialByteCountToReturnCompleteSessionMetaLine() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let repeatedPathSegment = String(repeating: "研发", count: 48)
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-subagent","cwd":"/Users/chenyuanjie/developer/\(repeatedPathSegment)","source":{"subagent":{"parent_thread_id":"thread-main","agent_nickname":"Zeno","agent_role":"explorer"}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+        let fileURL = rootURL.appendingPathComponent("session.jsonl")
+        try jsonl.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let firstChineseRange = try XCTUnwrap(jsonl.range(of: "研"))
+        let utf8Index = try XCTUnwrap(firstChineseRange.lowerBound.samePosition(in: jsonl.utf8))
+        let byteCount = jsonl.utf8.distance(from: jsonl.utf8.startIndex, to: utf8Index) + 1
+
+        let head = try XCTUnwrap(
+            CodexSessionHeadReader.readHead(
+                atPath: fileURL.path,
+                byteCount: byteCount,
+                maxByteCount: 16 * 1_024
+            )
+        )
+
+        XCTAssertTrue(CodexSessionSnapshotParser.isSubagentSession(head))
+    }
+
+    func testHeadReaderContinuesUntilFirstNewlineWhenSessionMetaLineExceedsDefaultWindow() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let oversizedPathSegment = String(repeating: "a", count: 70_000)
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-subagent","cwd":"/Users/chenyuanjie/developer/\(oversizedPathSegment)","source":{"subagent":{"parent_thread_id":"thread-main","agent_nickname":"Zeno","agent_role":"explorer"}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+        let fileURL = rootURL.appendingPathComponent("oversized-session.jsonl")
+        try jsonl.write(to: fileURL, atomically: true, encoding: .utf8)
+
+        let head = try XCTUnwrap(CodexSessionHeadReader.readHead(atPath: fileURL.path))
+        XCTAssertTrue(CodexSessionSnapshotParser.isSubagentSession(head))
+    }
+
     private func fixtureText(named: String, ext: String) throws -> String {
         let bundle = Bundle(for: Self.self)
         let targetName = named + "." + ext

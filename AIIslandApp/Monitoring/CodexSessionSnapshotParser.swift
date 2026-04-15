@@ -25,6 +25,39 @@ struct CodexSessionSnapshot: Equatable {
 }
 
 enum CodexSessionSnapshotParser {
+    static func isSubagentSession(_ text: String) -> Bool {
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard
+                let lineData = rawLine.data(using: .utf8),
+                let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                normalizedString(json["type"]) == "session_meta",
+                let payload = json["payload"] as? [String: Any]
+            else {
+                continue
+            }
+
+            let source = payload["source"] as? [String: Any]
+            guard let subagent = source?["subagent"] as? [String: Any], !subagent.isEmpty else {
+                continue
+            }
+
+            let hasThreadSpawn = (subagent["thread_spawn"] as? [String: Any]) != nil
+            let hasParentThreadID = normalizedString(subagent["parent_thread_id"] ?? subagent["parentThreadId"]) != nil
+            let hasAgentRole = normalizedString(
+                subagent["agent_role"] ?? subagent["agentRole"] ?? payload["agent_role"] ?? payload["agentRole"]
+            ) != nil
+            let hasAgentNickname = normalizedString(
+                subagent["agent_nickname"] ?? subagent["agentNickname"] ?? payload["agent_nickname"] ?? payload["agentNickname"]
+            ) != nil
+
+            if hasThreadSpawn || hasParentThreadID || hasAgentRole || hasAgentNickname {
+                return true
+            }
+        }
+
+        return false
+    }
+
     static func parse(
         _ text: String,
         sessionID: String,

@@ -31,6 +31,7 @@ final class CodexMonitor: ObservableObject {
     private var coalescedTrigger = "event"
     private var refreshGeneration: UInt64 = 0
     private var activeRefreshGeneration: UInt64 = 0
+    private var runGeneration: UInt64 = 0
     private var isRunning = false
     private let workerQueue = DispatchQueue(label: "com.aiisland.monitor.codex.worker", qos: .utility)
 
@@ -44,6 +45,24 @@ final class CodexMonitor: ObservableObject {
         let watchedPaths: [String]
         let updatedModels: [String: CodexCachedModel]
     }
+
+#if DEBUG
+    struct RefreshDebugState {
+        let refreshInFlight: Bool
+        let refreshDirty: Bool
+        let activeRefreshGeneration: UInt64
+        let runGeneration: UInt64
+    }
+
+    var debugRefreshState: RefreshDebugState {
+        RefreshDebugState(
+            refreshInFlight: refreshInFlight,
+            refreshDirty: refreshDirty,
+            activeRefreshGeneration: activeRefreshGeneration,
+            runGeneration: runGeneration
+        )
+    }
+#endif
 
     init(
         fileManager: FileManager = .default,
@@ -67,6 +86,7 @@ final class CodexMonitor: ObservableObject {
     }
 
     func start() {
+        runGeneration &+= 1
         isRunning = true
         configureSignalSourceIfNeeded()
 
@@ -83,6 +103,7 @@ final class CodexMonitor: ObservableObject {
 
     func stop() {
         isRunning = false
+        runGeneration &+= 1
         pendingRefreshWorkItem?.cancel()
         pendingRefreshWorkItem = nil
         refreshDirty = false
@@ -178,6 +199,7 @@ final class CodexMonitor: ObservableObject {
         lastRefreshAt = Date()
         refreshGeneration &+= 1
         let generation = refreshGeneration
+        let runGeneration = self.runGeneration
         activeRefreshGeneration = generation
         refreshInFlight = true
         refreshDirty = false
@@ -196,16 +218,32 @@ final class CodexMonitor: ObservableObject {
                 trigger: trigger
             )
             Task { @MainActor [weak self] in
-                self?.finishRefresh(result: result, generation: generation)
+                self?.finishRefresh(
+                    result: result,
+                    generation: generation,
+                    runGeneration: runGeneration
+                )
             }
         }
     }
 
-    private func finishRefresh(result: RefreshComputation, generation: UInt64) {
+    private func finishRefresh(
+        result: RefreshComputation,
+        generation: UInt64,
+        runGeneration: UInt64
+    ) {
         guard isRunning else {
             return
         }
+        guard runGeneration == self.runGeneration else {
+            return
+        }
         guard generation == activeRefreshGeneration else {
+            refreshInFlight = false
+            if refreshDirty {
+                refreshDirty = false
+                launchRefresh(trigger: coalescedTrigger)
+            }
             return
         }
 
@@ -241,12 +279,12 @@ final class CodexMonitor: ObservableObject {
             .appendingPathComponent("sessions", isDirectory: true)
 
         var hasReadableCodexArtifacts = false
-        let indexedThreads = loadIndexedThreads(
+        let rawIndexedThreads = loadIndexedThreads(
             fileManager: fileManager,
             from: indexURL,
             hasReadableArtifacts: &hasReadableCodexArtifacts
         )
-        let indexedThreadByID = Dictionary(uniqueKeysWithValues: indexedThreads.map { ($0.threadID, $0) })
+        let rawIndexedThreadByID = Dictionary(uniqueKeysWithValues: rawIndexedThreads.map { ($0.threadID, $0) })
 
         let sessionFiles = CodexSessionCatalog.discoverSessionFiles(
             fileManager: fileManager,
@@ -258,9 +296,19 @@ final class CodexMonitor: ObservableObject {
         }
 
         var parsedSnapshots: [CodexSessionSnapshot] = []
+        var visibleSessionFiles: [CodexSessionFileCandidate] = []
+        var suppressedThreadIDs: Set<String> = []
         parsedSnapshots.reserveCapacity(sessionFiles.count)
+        visibleSessionFiles.reserveCapacity(sessionFiles.count)
 
         for sessionFile in sessionFiles {
+            if let headText = CodexSessionHeadReader.readHead(atPath: sessionFile.url.path),
+               CodexSessionSnapshotParser.isSubagentSession(headText) {
+                suppressedThreadIDs.insert(sessionFile.threadID)
+                continue
+            }
+
+            visibleSessionFiles.append(sessionFile)
             guard let tailText = CodexSessionTailReader.readTail(
                 atPath: sessionFile.url.path,
                 fileSize: sessionFile.fileSize,
@@ -271,7 +319,7 @@ final class CodexMonitor: ObservableObject {
                 continue
             }
 
-            let fallbackTaskLabel = indexedThreadByID[sessionFile.threadID]?.threadName ?? ""
+            let fallbackTaskLabel = rawIndexedThreadByID[sessionFile.threadID]?.threadName ?? ""
             var snapshot = CodexSessionSnapshotParser.parse(
                 tailText,
                 sessionID: sessionFile.threadID,
@@ -281,7 +329,7 @@ final class CodexMonitor: ObservableObject {
             if snapshot.updatedAt == nil {
                 snapshot = CodexSessionSnapshotParser.replacing(
                     snapshot,
-                    updatedAt: indexedThreadByID[sessionFile.threadID]?.updatedAt
+                    updatedAt: rawIndexedThreadByID[sessionFile.threadID]?.updatedAt
                 )
             }
 
@@ -292,6 +340,8 @@ final class CodexMonitor: ObservableObject {
                 parsedSnapshots.append(snapshot)
             }
         }
+
+        let indexedThreads = rawIndexedThreads.filter { !suppressedThreadIDs.contains($0.threadID) }
 
         let arbitration = CodexMonitorArbitrator.compute(
             indexedThreads: indexedThreads,
@@ -308,7 +358,7 @@ final class CodexMonitor: ObservableObject {
             diagnostics: arbitration.diagnostics,
             watchedPaths: CodexSessionCatalog.watchedPaths(
                 codexHomePath: codexHomePath,
-                sessionFiles: sessionFiles
+                sessionFiles: visibleSessionFiles
             ),
             updatedModels: arbitration.updatedModels
         )

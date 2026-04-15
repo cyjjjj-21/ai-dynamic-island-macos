@@ -366,6 +366,208 @@ final class ClaudeCodeMonitorSmokeTests: XCTestCase {
         XCTAssertEqual(monitor.claudeState.globalState, .attention)
     }
 
+    func testManualRefreshDuringInFlightRefreshDoesNotBlockLaterEventRefreshes() throws {
+        let blocked = expectation(description: "startup refresh is blocked")
+        let fileManager = BlockingFileManager { path in
+            if path.hasSuffix("/session-a.json") {
+                blocked.fulfill()
+            }
+        }
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let claudeDirURL = rootURL.appendingPathComponent(".claude", isDirectory: true)
+        let sessionsDirURL = claudeDirURL.appendingPathComponent("sessions", isDirectory: true)
+        let projectsDirURL = claudeDirURL.appendingPathComponent("projects", isDirectory: true)
+        let bridgeDirURL = rootURL.appendingPathComponent("bridge", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: projectsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bridgeDirURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-a",
+            cwd: "/workspace/alpha",
+            status: "busy",
+            waitingFor: nil,
+            model: "claude-sonnet-4",
+            summary: "startup refresh",
+            usedPercent: 20,
+            modifiedAt: Date().addingTimeInterval(-30)
+        )
+
+        let signalSource = TestRealtimeSignalSource()
+        let monitor = ClaudeCodeMonitor(
+            fileManager: fileManager,
+            claudeDirPath: claudeDirURL.path,
+            temporaryDirectoryPath: bridgeDirURL.path,
+            processAliveChecker: { _ in true },
+            keepAlivePollInterval: 60,
+            eventDebounceInterval: 0.01,
+            signalSource: signalSource
+        )
+
+        let blockedSessionPath = sessionsDirURL.appendingPathComponent("session-a.json").path
+        fileManager.blockNextRead(atPath: blockedSessionPath)
+        monitor.start()
+        wait(for: [blocked], timeout: 1.0)
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-b",
+            cwd: "/workspace/beta",
+            status: "waiting",
+            waitingFor: "approve Edit",
+            model: "kimi-k2.5",
+            summary: "manual refresh",
+            usedPercent: 63,
+            modifiedAt: Date()
+        )
+        monitor.refreshNow()
+        XCTAssertEqual(monitor.claudeState.threads.first?.id, "session-b")
+
+        fileManager.releaseBlockedRead()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-c",
+            cwd: "/workspace/gamma",
+            status: "waiting",
+            waitingFor: "approve Bash",
+            model: "claude-opus-4.1",
+            summary: "event refresh",
+            usedPercent: 44,
+            modifiedAt: Date().addingTimeInterval(1)
+        )
+        signalSource.emit()
+
+        assertEventually {
+            monitor.claudeState.threads.first?.id == "session-c"
+        }
+        monitor.stop()
+    }
+
+    func testRestartWhileStaleRefreshCompletesDoesNotDropCurrentInFlightGate() throws {
+        let firstBlocked = expectation(description: "first startup refresh is blocked")
+        let secondBlocked = expectation(description: "second startup refresh is blocked")
+        let blockCounter = ReadBlockCounter()
+        let fileManager = BlockingFileManager { path in
+            guard path.hasSuffix("/session-a.json") || path.hasSuffix("/session-b.json") else {
+                return
+            }
+
+            let blockCount = blockCounter.increment()
+            if blockCount == 1 {
+                firstBlocked.fulfill()
+            } else if blockCount == 2 {
+                secondBlocked.fulfill()
+            }
+        }
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let claudeDirURL = rootURL.appendingPathComponent(".claude", isDirectory: true)
+        let sessionsDirURL = claudeDirURL.appendingPathComponent("sessions", isDirectory: true)
+        let projectsDirURL = claudeDirURL.appendingPathComponent("projects", isDirectory: true)
+        let bridgeDirURL = rootURL.appendingPathComponent("bridge", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: projectsDirURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: bridgeDirURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let signalSource = TestRealtimeSignalSource()
+        let monitor = ClaudeCodeMonitor(
+            fileManager: fileManager,
+            claudeDirPath: claudeDirURL.path,
+            temporaryDirectoryPath: bridgeDirURL.path,
+            processAliveChecker: { _ in true },
+            keepAlivePollInterval: 60,
+            eventDebounceInterval: 0.01,
+            signalSource: signalSource
+        )
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-a",
+            cwd: "/workspace/alpha",
+            status: "busy",
+            waitingFor: nil,
+            model: "claude-sonnet-4",
+            summary: "first startup refresh",
+            usedPercent: 20,
+            modifiedAt: Date().addingTimeInterval(-30)
+        )
+
+        let firstSessionPath = sessionsDirURL.appendingPathComponent("session-a.json").path
+        fileManager.blockNextRead(atPath: firstSessionPath)
+        monitor.start()
+        wait(for: [firstBlocked], timeout: 1.0)
+
+        monitor.stop()
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-b",
+            cwd: "/workspace/beta",
+            status: "waiting",
+            waitingFor: "approve Edit",
+            model: "kimi-k2.5",
+            summary: "second startup refresh",
+            usedPercent: 63,
+            modifiedAt: Date()
+        )
+
+        let secondSessionPath = sessionsDirURL.appendingPathComponent("session-b.json").path
+        fileManager.blockNextRead(atPath: secondSessionPath)
+        monitor.start()
+        fileManager.releaseBlockedRead()
+        wait(for: [secondBlocked], timeout: 1.0)
+
+        try makeClaudeSessionFixture(
+            fileManager: fileManager,
+            sessionsDirURL: sessionsDirURL,
+            projectsDirURL: projectsDirURL,
+            bridgeDirURL: bridgeDirURL,
+            sessionID: "session-c",
+            cwd: "/workspace/gamma",
+            status: "waiting",
+            waitingFor: "approve Bash",
+            model: "claude-opus-4.1",
+            summary: "event refresh after restart",
+            usedPercent: 44,
+            modifiedAt: Date().addingTimeInterval(1)
+        )
+        signalSource.emit()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+
+        let debugState = monitor.debugRefreshState
+        XCTAssertTrue(debugState.refreshInFlight)
+        XCTAssertTrue(debugState.refreshDirty)
+
+        fileManager.releaseBlockedRead()
+        assertEventually {
+            monitor.claudeState.threads.first?.id == "session-c"
+        }
+        monitor.stop()
+    }
+
     private func makeClaudeSessionFixture(
         fileManager: FileManager,
         sessionsDirURL: URL,
