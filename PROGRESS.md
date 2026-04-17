@@ -11,6 +11,33 @@
 
 ## Current Status
 
+### Thread Naming P0 Hardening Completed (2026-04-17)
+
+- Added semantic thread naming for Codex and Claude rows:
+  - Codex titles are derived from cleaned user prompt candidates before falling back to session-index hints or workspace labels
+  - Claude titles prefer `task-summary`, then quality-gated user prompt candidates / `last-prompt`, then workspace fallback
+  - dirty HTML fragments, replacement characters, absolute paths, username-only workspaces, and execution-only prompts are filtered before they can become primary titles
+- Added Claude prompt extraction from transcript tails:
+  - `last-prompt` is captured as candidate material without changing fallback state
+  - external user text / `input_text` content is captured as title candidates, while explicit non-external user entries are excluded
+  - `tool_result` blocks remain excluded, including mixed user-message content blocks
+  - state-only noise classification is named separately from prompt extraction so `last-prompt` remains valuable title material without driving fallback state
+- Tightened Claude visibility gating after subagent review:
+  - raw prompt presence no longer makes an idle Claude thread visible by itself
+  - only prompt candidates that survive `ThreadTitleResolver` as `.claudePromptSummary` can act as a visibility signal
+  - waiting/approval state remains detail copy, not the primary title
+  - `task-summary` is sanitized before viability checks so harmless formatting fragments do not force a weaker fallback
+- Tightened Codex title fallback after diagnosis review:
+  - acknowledgement-only prompts such as `go`, `ok`, `继续`, and `review` no longer become primary titles
+  - topic-like earlier prompts now outrank later low-context follow-up prompts
+  - `session_index.thread_name` is cleaned before viability checks and trims `<br>` / `<br/>` / `<br />` tails before garbled suffixes can leak into UI
+  - Codex-specific prompt rewrites stay source-aware so Claude prompt candidates do not receive Codex-branded quota titles
+  - container-only workspaces such as `/Users/chenyuanjie/developer` still fall back to `Codex 任务` instead of showing a low-value directory name
+- Verification:
+  - focused red/green coverage added for Claude `last-prompt`, user prompt candidates, prompt-summary fallback, and execution-only prompt suppression
+  - focused Claude/Codex monitor/title regression green:
+    `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/ClaudeCodeMonitorSmokeTests -only-testing:AIIslandAppTests/ClaudeMonitorArbitratorTests -only-testing:AIIslandAppTests/ClaudeCodeSnapshotParserTests -only-testing:AIIslandAppTests/ThreadTitleResolverTests -only-testing:AIIslandAppTests/CodexMonitorArbitratorTests -only-testing:AIIslandAppTests/CodexMonitorSmokeTests`
+
 ### Codex Monitor Hardening Completed (2026-04-15)
 
 - Reworked the Codex monitor toward the same layered shape proven by the Claude refactor, while keeping Codex-specific realtime orchestration intact:
@@ -788,3 +815,23 @@ Update the plan before continuing too far with later tasks so future work does n
 - `Claude` displays real backend third-party model names.
 - `Codex` quota stays only in the Codex section header.
 - Motion must feel like a smooth material promotion, not a generic popover animation.
+
+---
+
+## 2026-04-17: P0 thread naming and display uplift
+
+Shipped the first pass of the P0 thread-title/detail redesign without increasing the expanded card height.
+
+- `AgentThread` now separates stable `title` from live `detail`, carries `workspaceLabel`, `lastUpdatedAt`, and `titleSource`, and keeps legacy `taskLabel` JSON compatibility in both decode and encode paths.
+- Added `ThreadTitleResolver` so Codex and Claude no longer surface raw latest prompts, dirty session-index titles, or home-directory usernames as thread names.
+- Codex titles now prefer higher-quality prompt summaries, reject execution-only prompts such as “按这份 plan 开始 coding”, reject absolute-path fallbacks, and derive repo labels correctly from worktree paths.
+- Claude titles now use `taskSummary` as the stable thread title and reserve `waitingFor` for compact detail copy such as `等待批准 Bash`.
+- Suppressed Codex subagents still stay out of the top-level thread list, but recent child activity now folds back into the parent detail as a compact “`N 个子任务有更新`” signal.
+- Expanded thread rows remain two-line rows with the same overall card height budget, but now render as `title + detail/status/context/recency` instead of raw prompt text plus a generic state pill.
+
+Verification:
+
+- `xcodebuild build -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS'`
+- `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/ThreadTitleResolverTests -only-testing:AIIslandAppTests/CodexSessionSnapshotParserTests -only-testing:AIIslandAppTests/CodexMonitorArbitratorTests -only-testing:AIIslandAppTests/CodexMonitorSmokeTests`
+- `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/FallbackRenderingRulesTests -only-testing:AIIslandAppTests/ClaudeMonitorArbitratorTests -only-testing:AIIslandAppTests/ExpandedIslandReviewLayoutTests -only-testing:AIIslandAppTests/VisualSnapshotSmokeTests`
+- Real desktop QA was re-run with `scripts/launch_review_app.sh pinnedExpanded thread-overflow` followed by `python3 scripts/capture_review_bundle.py --app AIIslandApp`; the captured review window stayed at `449x628pt`, confirming this pass did not grow the expanded island vertically.

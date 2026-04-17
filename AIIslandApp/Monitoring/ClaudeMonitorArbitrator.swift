@@ -66,10 +66,14 @@ enum ClaudeMonitorArbitrator {
         let threads = visibleEvaluations.map { evaluation in
             AgentThread(
                 id: evaluation.sessionID,
-                taskLabel: evaluation.taskLabel,
+                title: evaluation.title,
+                detail: evaluation.detail,
+                workspaceLabel: evaluation.workspaceLabel,
                 modelLabel: evaluation.modelLabel,
                 contextRatio: evaluation.contextRatio,
-                state: evaluation.state
+                state: evaluation.state,
+                lastUpdatedAt: evaluation.lastSignalAt,
+                titleSource: evaluation.titleSource
             )
         }
 
@@ -119,7 +123,10 @@ enum ClaudeMonitorArbitrator {
 
     private struct SessionEvaluation: Equatable, Sendable {
         let sessionID: String
-        let taskLabel: String
+        let title: String
+        let detail: String?
+        let workspaceLabel: String?
+        let titleSource: AgentThreadTitleSource
         let modelLabel: String
         let contextRatio: Double?
         let state: AgentGlobalState
@@ -147,10 +154,12 @@ enum ClaudeMonitorArbitrator {
             .max()
         let stage = freshnessPolicy.stage(lastSignalAt: lastSignalAt, now: now)
         let state = decayState(rawState, stage: stage)
-        let taskLabel = ClaudeCodeSnapshotParser.resolveTaskLabel(
-            activity: snapshot.candidate.activity,
-            transcript: snapshot.transcript,
-            cwd: snapshot.candidate.cwd
+        let resolvedTitle = ThreadTitleResolver.resolveClaudeTitle(
+            taskSummary: snapshot.transcript.taskSummary,
+            promptCandidates: snapshot.transcript.userPromptCandidates,
+            lastPrompt: snapshot.transcript.lastPrompt,
+            waitingFor: snapshot.candidate.activity?.waitingFor,
+            workspacePath: snapshot.candidate.cwd
         )
         let rawModel = ClaudeCodeSnapshotParser.resolveModelLabel(transcript: snapshot.transcript)
         let modelLabel = resolveModelLabel(
@@ -164,12 +173,16 @@ enum ClaudeMonitorArbitrator {
         let shouldRenderThread = ClaudeCodeSnapshotParser.shouldRenderThread(
             activity: snapshot.candidate.activity,
             transcript: snapshot.transcript,
-            state: state
+            state: state,
+            titleSource: resolvedTitle.source
         ) && shouldRenderThread(for: stage)
 
         return SessionEvaluation(
             sessionID: snapshot.candidate.sessionID,
-            taskLabel: taskLabel,
+            title: resolvedTitle.title,
+            detail: resolvedTitle.detail,
+            workspaceLabel: resolvedTitle.workspaceLabel,
+            titleSource: resolvedTitle.source,
             modelLabel: modelLabel,
             contextRatio: snapshot.bridge?.contextRatio,
             state: state,

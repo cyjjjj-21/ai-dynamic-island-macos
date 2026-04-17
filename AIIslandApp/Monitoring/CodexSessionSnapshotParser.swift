@@ -22,9 +22,27 @@ struct CodexSessionSnapshot: Equatable {
     let trustLevel: CodexSnapshotTrustLevel
     let hasStructuredTokenSignal: Bool
     let hasStructuredActivitySignal: Bool
+    let promptCandidates: [String]
+    let titleHint: String?
+    let workspacePath: String?
+    let latestAssistantMessage: String?
+}
+
+struct CodexSubagentActivity: Equatable, Sendable {
+    let parentThreadID: String
+    let activeCount: Int
+    let latestUpdatedAt: Date?
 }
 
 enum CodexSessionSnapshotParser {
+    private static let placeholderValues: Set<String> = [
+        "undefined",
+        "null",
+        "nil",
+        "none",
+        "nan"
+    ]
+
     static func isSubagentSession(_ text: String) -> Bool {
         for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
             guard
@@ -41,16 +59,23 @@ enum CodexSessionSnapshotParser {
                 continue
             }
 
-            let hasThreadSpawn = (subagent["thread_spawn"] as? [String: Any]) != nil
-            let hasParentThreadID = normalizedString(subagent["parent_thread_id"] ?? subagent["parentThreadId"]) != nil
-            let hasAgentRole = normalizedString(
-                subagent["agent_role"] ?? subagent["agentRole"] ?? payload["agent_role"] ?? payload["agentRole"]
-            ) != nil
-            let hasAgentNickname = normalizedString(
-                subagent["agent_nickname"] ?? subagent["agentNickname"] ?? payload["agent_nickname"] ?? payload["agentNickname"]
+            let nestedThreadSpawn = subagent["thread_spawn"] as? [String: Any]
+            let rootThreadSpawn = payload["thread_spawn"] as? [String: Any]
+            let sourceThreadSpawn = source?["thread_spawn"] as? [String: Any]
+            let hasParentThreadID = normalizedString(
+                subagent["parent_thread_id"]
+                    ?? subagent["parentThreadId"]
+                    ?? nestedThreadSpawn?["parent_thread_id"]
+                    ?? nestedThreadSpawn?["parentThreadId"]
+                    ?? rootThreadSpawn?["parent_thread_id"]
+                    ?? rootThreadSpawn?["parentThreadId"]
+                    ?? sourceThreadSpawn?["parent_thread_id"]
+                    ?? sourceThreadSpawn?["parentThreadId"]
+                    ?? payload["parent_thread_id"]
+                    ?? payload["parentThreadId"]
             ) != nil
 
-            if hasThreadSpawn || hasParentThreadID || hasAgentRole || hasAgentNickname {
+            if hasParentThreadID {
                 return true
             }
         }
@@ -69,7 +94,9 @@ enum CodexSessionSnapshotParser {
         var latestUserPrompt: String?
         var latestAssistantMessage: String?
         var fallbackCwdTail: String?
+        var workspacePath: String?
         var userPromptByTurnID: [String: String] = [:]
+        var promptCandidates: [String] = []
 
         var activeTurnIDs: Set<String> = []
         var turnActivationOrder: [String] = []
@@ -109,6 +136,7 @@ enum CodexSessionSnapshotParser {
                 if let payload = json["payload"] as? [String: Any] {
                     let cwd = normalizedString(payload["cwd"])
                     if let cwd {
+                        workspacePath = cwd
                         fallbackCwdTail = lastPathComponent(cwd)
                     }
 
@@ -142,7 +170,13 @@ enum CodexSessionSnapshotParser {
 
                 hasStructuredActivitySignal = true
                 if role == "user" {
+                    guard !isSyntheticUserMessage(messageText) else {
+                        continue
+                    }
                     latestUserPrompt = messageText
+                    if !promptCandidates.contains(messageText) {
+                        promptCandidates.append(messageText)
+                    }
                     if let turnID {
                         userPromptByTurnID[turnID] = messageText
                     }
@@ -252,7 +286,11 @@ enum CodexSessionSnapshotParser {
             updatedAt: latestTimestamp,
             trustLevel: trustLevel,
             hasStructuredTokenSignal: hasStructuredTokenSignal,
-            hasStructuredActivitySignal: hasStructuredActivitySignal
+            hasStructuredActivitySignal: hasStructuredActivitySignal,
+            promptCandidates: promptCandidates,
+            titleHint: normalizedString(fallbackTaskLabel),
+            workspacePath: workspacePath,
+            latestAssistantMessage: latestAssistantMessage
         )
     }
 
@@ -271,7 +309,11 @@ enum CodexSessionSnapshotParser {
             updatedAt: indexedThread.updatedAt,
             trustLevel: .recentIndexFallback,
             hasStructuredTokenSignal: false,
-            hasStructuredActivitySignal: false
+            hasStructuredActivitySignal: false,
+            promptCandidates: [],
+            titleHint: normalizedString(indexedThread.threadName),
+            workspacePath: nil,
+            latestAssistantMessage: nil
         )
     }
 
@@ -292,8 +334,64 @@ enum CodexSessionSnapshotParser {
             updatedAt: updatedAt ?? snapshot.updatedAt,
             trustLevel: snapshot.trustLevel,
             hasStructuredTokenSignal: snapshot.hasStructuredTokenSignal,
-            hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal
+            hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal,
+            promptCandidates: snapshot.promptCandidates,
+            titleHint: snapshot.titleHint,
+            workspacePath: snapshot.workspacePath,
+            latestAssistantMessage: snapshot.latestAssistantMessage
         )
+    }
+
+    static func parseSubagentActivity(
+        from text: String,
+        fallbackUpdatedAt: Date?
+    ) -> CodexSubagentActivity? {
+        var dateContext = DateParsingContext()
+
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard
+                let lineData = rawLine.data(using: .utf8),
+                let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+                normalizedString(json["type"]) == "session_meta",
+                let payload = json["payload"] as? [String: Any]
+            else {
+                continue
+            }
+
+            let source = payload["source"] as? [String: Any]
+            let subagent = source?["subagent"] as? [String: Any]
+            let rootThreadSpawn = payload["thread_spawn"] as? [String: Any]
+            let sourceThreadSpawn = source?["thread_spawn"] as? [String: Any]
+            let parentThreadID = normalizedString(
+                subagent?["parent_thread_id"]
+                    ?? subagent?["parentThreadId"]
+                    ?? (subagent?["thread_spawn"] as? [String: Any])?["parent_thread_id"]
+                    ?? (subagent?["thread_spawn"] as? [String: Any])?["parentThreadId"]
+                    ?? rootThreadSpawn?["parent_thread_id"]
+                    ?? rootThreadSpawn?["parentThreadId"]
+                    ?? sourceThreadSpawn?["parent_thread_id"]
+                    ?? sourceThreadSpawn?["parentThreadId"]
+                    ?? payload["parent_thread_id"]
+                    ?? payload["parentThreadId"]
+            )
+
+            guard let parentThreadID else {
+                continue
+            }
+
+            let observedAt = parseDate(
+                json["timestamp"] ?? json["updated_at"] ?? json["updatedAt"] ?? json["ts"],
+                context: &dateContext
+            ) ?? fallbackUpdatedAt
+
+            return CodexSubagentActivity(
+                parentThreadID: parentThreadID,
+                activeCount: 1,
+                latestUpdatedAt: observedAt
+            )
+        }
+
+        return nil
     }
 
     private static func resolveTaskLabel(
@@ -364,6 +462,23 @@ enum CodexSessionSnapshotParser {
         return signals.contains { lowercased.contains($0) }
     }
 
+    private static func isSyntheticUserMessage(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lowered = trimmed.lowercased()
+        if lowered.contains("<subagent_notification") || lowered.contains("</subagent_notification>") {
+            return true
+        }
+
+        let looksLikeAgentJSON = trimmed.hasPrefix("{")
+            && lowered.contains("\"agent_path\"")
+            && lowered.contains("\"status\"")
+        if looksLikeAgentJSON {
+            return true
+        }
+
+        return lowered.contains("\"agent_path\"") && lowered.contains("::code-comment{")
+    }
+
     private static func extractMessageText(from content: Any?) -> String? {
         guard let items = content as? [Any] else {
             return nil
@@ -401,7 +516,8 @@ enum CodexSessionSnapshotParser {
         }
 
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        guard !trimmed.isEmpty else { return nil }
+        return placeholderValues.contains(trimmed.lowercased()) ? nil : trimmed
     }
 
     private static func number(from value: Any?) -> Double? {

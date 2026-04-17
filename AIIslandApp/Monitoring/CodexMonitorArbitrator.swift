@@ -15,6 +15,7 @@ enum CodexMonitorArbitrator {
     static func compute(
         indexedThreads: [CodexIndexedThread],
         parsedSnapshots: [CodexSessionSnapshot],
+        subagentActivityByParentID: [String: CodexSubagentActivity] = [:],
         hasReadableArtifacts: Bool,
         cachedModels: [String: CodexCachedModel],
         freshnessPolicy: MonitorFreshnessPolicy,
@@ -93,12 +94,27 @@ enum CodexMonitorArbitrator {
         }
 
         let visibleThreads = Array(sortedThreads.prefix(maxVisibleThreads)).map { snapshot in
-            AgentThread(
+            let resolved = ThreadTitleResolver.resolveCodexTitle(
+                prompts: snapshot.promptCandidates,
+                sessionIndexTitle: snapshot.titleHint,
+                workspacePath: snapshot.workspacePath,
+                latestAssistantMessage: snapshot.latestAssistantMessage
+            )
+            return AgentThread(
                 id: snapshot.sessionID,
-                taskLabel: snapshot.taskLabel,
+                title: resolved.title,
+                detail: mergedDetail(
+                    primary: resolved.detail,
+                    subagentActivity: subagentActivityByParentID[snapshot.sessionID],
+                    freshnessPolicy: freshnessPolicy,
+                    now: now
+                ),
+                workspaceLabel: resolved.workspaceLabel,
                 modelLabel: snapshot.modelLabel,
                 contextRatio: snapshot.contextRatio,
-                state: snapshot.state
+                state: snapshot.state,
+                lastUpdatedAt: snapshot.updatedAt,
+                titleSource: resolved.source
             )
         }
 
@@ -203,7 +219,11 @@ enum CodexMonitorArbitrator {
                 updatedAt: snapshot.updatedAt,
                 trustLevel: snapshot.trustLevel,
                 hasStructuredTokenSignal: snapshot.hasStructuredTokenSignal,
-                hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal
+                hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal,
+                promptCandidates: snapshot.promptCandidates,
+                titleHint: snapshot.titleHint,
+                workspacePath: snapshot.workspacePath,
+                latestAssistantMessage: snapshot.latestAssistantMessage
             )
         case .staleHidden, .expired:
             return nil
@@ -248,8 +268,55 @@ enum CodexMonitorArbitrator {
             updatedAt: snapshot.updatedAt,
             trustLevel: snapshot.trustLevel,
             hasStructuredTokenSignal: snapshot.hasStructuredTokenSignal,
-            hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal
+            hasStructuredActivitySignal: snapshot.hasStructuredActivitySignal,
+            promptCandidates: snapshot.promptCandidates,
+            titleHint: snapshot.titleHint,
+            workspacePath: snapshot.workspacePath,
+            latestAssistantMessage: snapshot.latestAssistantMessage
         )
+    }
+
+    private static func mergedDetail(
+        primary: String?,
+        subagentActivity: CodexSubagentActivity?,
+        freshnessPolicy: MonitorFreshnessPolicy,
+        now: Date
+    ) -> String? {
+        let base = primary?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let subagentActivity else {
+            return emptyToNil(base)
+        }
+
+        guard freshnessPolicy.stage(lastSignalAt: subagentActivity.latestUpdatedAt, now: now) != .expired else {
+            return emptyToNil(base)
+        }
+
+        let subagentCopy = "\(subagentActivity.activeCount) 个子任务有更新"
+        guard let base = emptyToNil(base) else {
+            return subagentCopy
+        }
+
+        guard shouldAppendSubagentSummary(to: base) else {
+            return base
+        }
+
+        let merged = "\(base) · \(subagentActivity.activeCount) 子任务更新"
+        return merged.count <= 18 ? merged : base
+    }
+
+    private static func emptyToNil(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
+    private static func shouldAppendSubagentSummary(to base: String) -> Bool {
+        let lowercased = base.lowercased()
+        if lowercased.contains("确认") || lowercased.contains("批准") || lowercased.contains("approve") {
+            return false
+        }
+        return base.count <= 10
     }
 
     private static func sourceHits(for snapshot: CodexSessionSnapshot) -> [String] {

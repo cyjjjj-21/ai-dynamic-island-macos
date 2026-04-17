@@ -84,12 +84,16 @@ enum IslandPalette {
     static let sectionTitleFont = Font.system(size: 13, weight: .semibold, design: .rounded)
     static let sectionStatusFont = Font.system(size: 9, weight: .semibold, design: .rounded)
     static let taskTitleFont = Font.system(size: 11.5, weight: .semibold, design: .default)
+    static let primaryThreadTitleFont = Font.system(size: 11.6, weight: .semibold, design: .default)
+    static let secondaryThreadTitleFont = Font.system(size: 11.0, weight: .semibold, design: .default)
     static let metadataFont = Font.system(size: 9, weight: .medium, design: .rounded)
     static let metadataStrongFont = Font.system(size: 9.5, weight: .semibold, design: .rounded)
     static let titleFont = taskTitleFont
     static let collapsedTitleFont = Font.system(size: 10.5, weight: .semibold, design: .rounded)
     static let badgeFont = Font.system(size: 8.5, weight: .semibold, design: .rounded)
     static let collapsedStatusDotSize: CGFloat = 5
+    static let primaryThreadVerticalPadding: CGFloat = 7
+    static let secondaryThreadVerticalPadding: CGFloat = 6
 
     static let badgePaddingH: CGFloat = 6
     static let badgePaddingV: CGFloat = 2

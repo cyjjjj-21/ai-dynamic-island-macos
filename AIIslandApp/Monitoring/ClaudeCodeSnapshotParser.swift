@@ -18,6 +18,30 @@ struct ClaudeCodeTranscriptSnapshot: Equatable {
     let modelLabel: String?
     let taskSummary: String?
     let hasInProgressToolUse: Bool
+    let lastPrompt: String?
+    let userPromptCandidates: [String]
+
+    init(
+        fallbackState: AgentGlobalState,
+        modelLabel: String?,
+        taskSummary: String?,
+        hasInProgressToolUse: Bool,
+        lastPrompt: String? = nil,
+        userPromptCandidates: [String] = []
+    ) {
+        self.fallbackState = fallbackState
+        self.modelLabel = modelLabel
+        self.taskSummary = taskSummary
+        self.hasInProgressToolUse = hasInProgressToolUse
+        self.lastPrompt = Self.normalizedPrompt(lastPrompt)
+        self.userPromptCandidates = userPromptCandidates.compactMap(Self.normalizedPrompt)
+    }
+
+    private static func normalizedPrompt(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
 }
 
 enum ClaudeCodeSnapshotParser {
@@ -44,17 +68,19 @@ enum ClaudeCodeSnapshotParser {
         var modelLabel: String?
         var taskSummary: String?
         var inProgressToolUseIDs = Set<String>()
+        var lastPrompt: String?
+        var userPromptCandidates: [String] = []
 
         for line in lines {
             guard let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else {
                 continue
             }
 
-            if !isNoiseEntry(object) {
+            let type = object["type"] as? String ?? ""
+
+            if !isStateNoiseEntry(object) {
                 fallbackState = mapJsonlEntryToState(object)
             }
-
-            let type = object["type"] as? String ?? ""
 
             if type == "assistant",
                let message = object["message"] as? [String: Any],
@@ -74,6 +100,11 @@ enum ClaudeCodeSnapshotParser {
                 }
             }
 
+            if type == "last-prompt" {
+                lastPrompt = normalizedPrompt(from: object["lastPrompt"] as? String)
+                    ?? normalizedPrompt(from: object["last_prompt"] as? String)
+            }
+
             if type == "assistant" {
                 for block in contentBlocks(in: object["message"] as? [String: Any]) where block["type"] as? String == "tool_use" {
                     if let id = block["id"] as? String {
@@ -81,6 +112,7 @@ enum ClaudeCodeSnapshotParser {
                     }
                 }
             } else if type == "user" {
+                userPromptCandidates.append(contentsOf: promptCandidates(in: object))
                 for block in contentBlocks(in: object["message"] as? [String: Any]) where block["type"] as? String == "tool_result" {
                     if let toolUseID = block["tool_use_id"] as? String {
                         inProgressToolUseIDs.remove(toolUseID)
@@ -93,7 +125,9 @@ enum ClaudeCodeSnapshotParser {
             fallbackState: fallbackState,
             modelLabel: modelLabel,
             taskSummary: taskSummary,
-            hasInProgressToolUse: !inProgressToolUseIDs.isEmpty
+            hasInProgressToolUse: !inProgressToolUseIDs.isEmpty,
+            lastPrompt: lastPrompt,
+            userPromptCandidates: userPromptCandidates
         )
     }
 
@@ -139,7 +173,8 @@ enum ClaudeCodeSnapshotParser {
     static func shouldRenderThread(
         activity: ClaudeCodeSessionActivity?,
         transcript: ClaudeCodeTranscriptSnapshot,
-        state: AgentGlobalState
+        state: AgentGlobalState,
+        titleSource: AgentThreadTitleSource? = nil
     ) -> Bool {
         if let waitingFor = activity?.waitingFor, !waitingFor.isEmpty {
             return true
@@ -150,6 +185,10 @@ enum ClaudeCodeSnapshotParser {
         }
 
         if let modelLabel = transcript.modelLabel, !modelLabel.isEmpty {
+            return true
+        }
+
+        if titleSource == .claudePromptSummary {
             return true
         }
 
@@ -166,7 +205,7 @@ enum ClaudeCodeSnapshotParser {
         return inputTokens == 0
     }
 
-    static func isNoiseEntry(_ object: [String: Any]) -> Bool {
+    static func isStateNoiseEntry(_ object: [String: Any]) -> Bool {
         let type = object["type"] as? String ?? ""
         return type == "file-history-snapshot"
             || type == "last-prompt"
@@ -212,5 +251,32 @@ enum ClaudeCodeSnapshotParser {
         }
 
         return content.compactMap { $0 as? [String: Any] }
+    }
+
+    private static func promptCandidates(in object: [String: Any]) -> [String] {
+        guard shouldCollectUserPromptCandidate(from: object) else {
+            return []
+        }
+
+        return contentBlocks(in: object["message"] as? [String: Any]).compactMap { block in
+            let type = block["type"] as? String
+            guard type == nil || type == "text" || type == "input_text" else {
+                return nil
+            }
+            return normalizedPrompt(from: block["text"] as? String)
+        }
+    }
+
+    private static func shouldCollectUserPromptCandidate(from object: [String: Any]) -> Bool {
+        guard let userType = object["userType"] as? String else {
+            return true
+        }
+        return userType == "external"
+    }
+
+    private static func normalizedPrompt(from raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

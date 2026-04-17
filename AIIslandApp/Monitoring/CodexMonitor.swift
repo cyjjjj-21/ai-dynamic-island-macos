@@ -298,6 +298,7 @@ final class CodexMonitor: ObservableObject {
         var parsedSnapshots: [CodexSessionSnapshot] = []
         var visibleSessionFiles: [CodexSessionFileCandidate] = []
         var suppressedThreadIDs: Set<String> = []
+        var subagentActivityByParentID: [String: CodexSubagentActivity] = [:]
         parsedSnapshots.reserveCapacity(sessionFiles.count)
         visibleSessionFiles.reserveCapacity(sessionFiles.count)
 
@@ -305,6 +306,16 @@ final class CodexMonitor: ObservableObject {
             if let headText = CodexSessionHeadReader.readHead(atPath: sessionFile.url.path),
                CodexSessionSnapshotParser.isSubagentSession(headText) {
                 suppressedThreadIDs.insert(sessionFile.threadID)
+                if let activity = CodexSessionSnapshotParser.parseSubagentActivity(
+                    from: headText,
+                    fallbackUpdatedAt: rawIndexedThreadByID[sessionFile.threadID]?.updatedAt ?? sessionFile.modifiedAt
+                ) {
+                    let existing = subagentActivityByParentID[activity.parentThreadID]
+                    subagentActivityByParentID[activity.parentThreadID] = mergeSubagentActivity(
+                        existing,
+                        with: activity
+                    )
+                }
                 continue
             }
 
@@ -356,6 +367,7 @@ final class CodexMonitor: ObservableObject {
         let arbitration = CodexMonitorArbitrator.compute(
             indexedThreads: indexedThreads,
             parsedSnapshots: parsedSnapshots,
+            subagentActivityByParentID: subagentActivityByParentID,
             hasReadableArtifacts: hasReadableCodexArtifacts,
             cachedModels: cachedModels,
             freshnessPolicy: freshnessPolicy,
@@ -387,5 +399,20 @@ final class CodexMonitor: ObservableObject {
 
         hasReadableArtifacts = true
         return CodexSessionIndexParser.parse(text)
+    }
+
+    private nonisolated static func mergeSubagentActivity(
+        _ lhs: CodexSubagentActivity?,
+        with rhs: CodexSubagentActivity
+    ) -> CodexSubagentActivity {
+        guard let lhs else {
+            return rhs
+        }
+
+        return CodexSubagentActivity(
+            parentThreadID: lhs.parentThreadID,
+            activeCount: lhs.activeCount + rhs.activeCount,
+            latestUpdatedAt: max(lhs.latestUpdatedAt ?? .distantPast, rhs.latestUpdatedAt ?? .distantPast)
+        )
     }
 }

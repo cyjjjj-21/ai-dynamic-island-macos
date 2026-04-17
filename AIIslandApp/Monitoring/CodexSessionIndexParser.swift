@@ -7,6 +7,14 @@ struct CodexIndexedThread: Equatable {
 }
 
 enum CodexSessionIndexParser {
+    private static let placeholderValues: Set<String> = [
+        "undefined",
+        "null",
+        "nil",
+        "none",
+        "nan"
+    ]
+
     static func parse(_ text: String) -> [CodexIndexedThread] {
         var dateContext = DateParsingContext()
         var newestByThreadID: [String: CodexIndexedThread] = [:]
@@ -53,7 +61,8 @@ enum CodexSessionIndexParser {
         }
 
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        guard !trimmed.isEmpty else { return nil }
+        return placeholderValues.contains(trimmed.lowercased()) ? nil : trimmed
     }
 
     private struct DateParsingContext {

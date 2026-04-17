@@ -104,6 +104,73 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
         XCTAssertEqual(snapshot.taskLabel, "继续向下推进，打磨到除了数据接入之外，其他都完全可用的状态。")
     }
 
+    func testParseSnapshotCollectsPromptCandidatesHintAndWorkspaceInputs() {
+        let jsonl = """
+        {"timestamp":"2026-04-17T10:00:00.000Z","type":"session_meta","payload":{"id":"thread-1","cwd":"/Users/chenyuanjie/developer/ai-dynamic-island-macos","model":"gpt-5.4"}}
+        {"timestamp":"2026-04-17T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-1","content":[{"type":"input_text","text":"继续把 Codex 配额展示做扎实"}]}}
+        {"timestamp":"2026-04-17T10:00:02.000Z","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-2","content":[{"type":"input_text","text":"顺便修一下配额刷新时间的对齐"}]}}
+        {"timestamp":"2026-04-17T10:00:03.000Z","type":"event_msg","payload":{"type":"agent_message","message":"Need your approval before I continue."}}
+        """
+
+        let snapshot = CodexSessionSnapshotParser.parse(
+            jsonl,
+            sessionID: "thread-1",
+            fallbackTaskLabel: "查找自动化未读消息来源<br>ꕥꕥ ti..."
+        )
+
+        XCTAssertEqual(snapshot.promptCandidates, ["继续把 Codex 配额展示做扎实", "顺便修一下配额刷新时间的对齐"])
+        XCTAssertEqual(snapshot.titleHint, "查找自动化未读消息来源<br>ꕥꕥ ti...")
+        XCTAssertEqual(snapshot.workspacePath, "/Users/chenyuanjie/developer/ai-dynamic-island-macos")
+        XCTAssertEqual(snapshot.latestAssistantMessage, "Need your approval before I continue.")
+    }
+
+    func testParseSnapshotIgnoresUndefinedPromptTextForTaskLabelAndCandidates() {
+        let jsonl = """
+        {"timestamp":"2026-04-17T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-1","content":[{"type":"input_text","text":"undefined"}]}}
+        """
+
+        let snapshot = CodexSessionSnapshotParser.parse(
+            jsonl,
+            sessionID: "thread-1",
+            fallbackTaskLabel: "Thread title"
+        )
+
+        XCTAssertEqual(snapshot.taskLabel, "Thread title")
+        XCTAssertEqual(snapshot.promptCandidates, [])
+    }
+
+    func testParseSnapshotIgnoresSubagentNotificationUserMessageForTitleInputs() {
+        let jsonl = """
+        {"timestamp":"2026-04-17T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-1","content":[{"type":"input_text","text":"<subagent_notification>\\n{\\"agent_path\\":\\"019d9b3d-8e8f-73b2-aa77-8b73d3088e77\\",\\"status\\":{\\"completed\\":\\"::code-comment{title=\\\\\\"[P2] review\\\\\\"}\\"}}\\n</subagent_notification>"}]}}
+        """
+
+        let snapshot = CodexSessionSnapshotParser.parse(
+            jsonl,
+            sessionID: "thread-1",
+            fallbackTaskLabel: "整理 AI Dynamic Island 改进清单"
+        )
+
+        XCTAssertEqual(snapshot.taskLabel, "整理 AI Dynamic Island 改进清单")
+        XCTAssertEqual(snapshot.promptCandidates, [])
+    }
+
+    func testParseSnapshotIgnoresUndefinedWorkspaceAndFallbackLabel() {
+        let jsonl = """
+        {"timestamp":"2026-04-17T10:00:00.000Z","type":"session_meta","payload":{"id":"thread-1","cwd":"undefined","model":"undefined"}}
+        """
+
+        let snapshot = CodexSessionSnapshotParser.parse(
+            jsonl,
+            sessionID: "thread-1",
+            fallbackTaskLabel: "undefined"
+        )
+
+        XCTAssertEqual(snapshot.taskLabel, "thread-1")
+        XCTAssertEqual(snapshot.modelLabel, "")
+        XCTAssertNil(snapshot.titleHint)
+        XCTAssertNil(snapshot.workspacePath)
+    }
+
     func testParseSnapshotLeavesQuotaAndContextNilWithoutTokenCount() {
         let jsonl = """
         {"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
@@ -164,6 +231,26 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
         XCTAssertFalse(CodexSessionSnapshotParser.isSubagentSession(jsonl))
     }
 
+    func testIsSubagentSessionIgnoresRoleOnlyShapeWithoutParentThreadID() {
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-ambiguous","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"agent_nickname":"Zeno","agent_role":"explorer"}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+
+        XCTAssertFalse(CodexSessionSnapshotParser.isSubagentSession(jsonl))
+        XCTAssertNil(CodexSessionSnapshotParser.parseSubagentActivity(from: jsonl, fallbackUpdatedAt: nil))
+    }
+
+    func testIsSubagentSessionIgnoresThreadSpawnWithoutParentThreadID() {
+        let jsonl = """
+        {"timestamp":"2026-04-15T15:09:01.806Z","type":"session_meta","payload":{"id":"thread-ambiguous","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"thread_spawn":{"depth":1},"agent_nickname":"Zeno","agent_role":"explorer"}}}}
+        {"timestamp":"2026-04-15T15:09:02.000Z","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4-mini"}}
+        """
+
+        XCTAssertFalse(CodexSessionSnapshotParser.isSubagentSession(jsonl))
+        XCTAssertNil(CodexSessionSnapshotParser.parseSubagentActivity(from: jsonl, fallbackUpdatedAt: nil))
+    }
+
     func testHeadReaderExtendsPastInitialByteCountToReturnCompleteSessionMetaLine() throws {
         let fileManager = FileManager.default
         let rootURL = fileManager.temporaryDirectory
@@ -211,6 +298,20 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
 
         let head = try XCTUnwrap(CodexSessionHeadReader.readHead(atPath: fileURL.path))
         XCTAssertTrue(CodexSessionSnapshotParser.isSubagentSession(head))
+    }
+
+    func testParseSubagentActivityAcceptsLegacyRootThreadSpawnShape() {
+        let jsonl = """
+        {"timestamp":"2026-04-17T10:00:00.000Z","type":"session_meta","payload":{"id":"thread-subagent","cwd":"/Users/chenyuanjie/developer","source":{"subagent":{"agent_nickname":"Zeno","agent_role":"explorer"}},"thread_spawn":{"parent_thread_id":"thread-main","depth":1},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        """
+
+        let activity = CodexSessionSnapshotParser.parseSubagentActivity(
+            from: jsonl,
+            fallbackUpdatedAt: nil
+        )
+
+        XCTAssertEqual(activity?.parentThreadID, "thread-main")
+        XCTAssertEqual(activity?.activeCount, 1)
     }
 
     private func fixtureText(named: String, ext: String) throws -> String {

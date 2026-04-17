@@ -24,12 +24,64 @@ public enum AgentQuotaAvailability: String, Codable, Sendable {
     case unavailable
 }
 
+public enum AgentThreadTitleSource: String, Codable, Equatable, Sendable {
+    case codexPromptSummary
+    case codexSessionIndexHint
+    case claudeTaskSummary
+    case claudePromptSummary
+    case workspaceFallback
+    case unknown
+}
+
 public struct AgentThread: Codable, Identifiable, Equatable, Sendable {
     public let id: String
-    public let taskLabel: String
+    public let title: String
+    public let detail: String?
+    public let workspaceLabel: String?
     public let modelLabel: String
     public let contextRatio: Double?
     public let state: AgentGlobalState
+    public let lastUpdatedAt: Date?
+    public let titleSource: AgentThreadTitleSource
+
+    public var taskLabel: String {
+        title
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case taskLabel
+        case detail
+        case workspaceLabel
+        case modelLabel
+        case contextRatio
+        case state
+        case lastUpdatedAt
+        case titleSource
+    }
+
+    public init(
+        id: String,
+        title: String,
+        detail: String?,
+        workspaceLabel: String?,
+        modelLabel: String,
+        contextRatio: Double?,
+        state: AgentGlobalState,
+        lastUpdatedAt: Date?,
+        titleSource: AgentThreadTitleSource
+    ) {
+        self.id = id
+        self.title = title
+        self.detail = detail
+        self.workspaceLabel = workspaceLabel
+        self.modelLabel = modelLabel
+        self.contextRatio = contextRatio
+        self.state = state
+        self.lastUpdatedAt = lastUpdatedAt
+        self.titleSource = titleSource
+    }
 
     public init(
         id: String,
@@ -38,11 +90,47 @@ public struct AgentThread: Codable, Identifiable, Equatable, Sendable {
         contextRatio: Double?,
         state: AgentGlobalState
     ) {
-        self.id = id
-        self.taskLabel = taskLabel
-        self.modelLabel = modelLabel
-        self.contextRatio = contextRatio
-        self.state = state
+        self.init(
+            id: id,
+            title: taskLabel,
+            detail: nil,
+            workspaceLabel: nil,
+            modelLabel: modelLabel,
+            contextRatio: contextRatio,
+            state: state,
+            lastUpdatedAt: nil,
+            titleSource: .unknown
+        )
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+            ?? container.decodeIfPresent(String.self, forKey: .taskLabel)
+            ?? id
+        detail = try container.decodeIfPresent(String.self, forKey: .detail)
+        workspaceLabel = try container.decodeIfPresent(String.self, forKey: .workspaceLabel)
+        modelLabel = try container.decodeIfPresent(String.self, forKey: .modelLabel) ?? ""
+        contextRatio = try container.decodeIfPresent(Double.self, forKey: .contextRatio)
+        state = try container.decodeIfPresent(AgentGlobalState.self, forKey: .state) ?? .idle
+        lastUpdatedAt = try container.decodeIfPresent(Date.self, forKey: .lastUpdatedAt)
+        titleSource = try container.decodeIfPresent(AgentThreadTitleSource.self, forKey: .titleSource) ?? .unknown
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(title, forKey: .title)
+        try container.encode(title, forKey: .taskLabel)
+        try container.encodeIfPresent(detail, forKey: .detail)
+        try container.encodeIfPresent(workspaceLabel, forKey: .workspaceLabel)
+        try container.encode(modelLabel, forKey: .modelLabel)
+        try container.encodeIfPresent(contextRatio, forKey: .contextRatio)
+        try container.encode(state, forKey: .state)
+        try container.encodeIfPresent(lastUpdatedAt, forKey: .lastUpdatedAt)
+        try container.encode(titleSource, forKey: .titleSource)
     }
 }
 

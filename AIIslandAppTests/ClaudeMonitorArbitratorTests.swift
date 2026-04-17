@@ -196,6 +196,102 @@ final class ClaudeMonitorArbitratorTests: XCTestCase {
         XCTAssertEqual(result.state.threads.map(\.id), ["session-a", "session-b"])
     }
 
+    func testArbitratorUsesClaudeTaskSummaryAsTitleAndWaitingForAsDetail() throws {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+        let snapshot = makeSnapshot(
+            sessionID: "session-claude-title",
+            cwd: "/Users/chenyuanjie/developer/ai-dynamic-island-macos",
+            observedAt: now.addingTimeInterval(-10),
+            activity: ClaudeCodeSessionActivity(status: .waiting, waitingFor: "approve Bash"),
+            transcript: ClaudeCodeTranscriptSnapshot(
+                fallbackState: .attention,
+                modelLabel: "claude-sonnet-4",
+                taskSummary: "Claude 多线程仲裁",
+                hasInProgressToolUse: false
+            )
+        )
+
+        let result = ClaudeMonitorArbitrator.compute(
+            snapshots: [snapshot],
+            baseWatchedPaths: ["/tmp/claude"],
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        let thread = try XCTUnwrap(result.state.threads.first)
+        XCTAssertEqual(thread.title, "Claude 多线程仲裁")
+        XCTAssertEqual(thread.detail, "等待批准 Bash")
+        XCTAssertEqual(thread.workspaceLabel, "ai-dynamic-island-macos")
+        XCTAssertEqual(thread.titleSource, .claudeTaskSummary)
+    }
+
+    func testArbitratorUsesClaudePromptSummaryWhenTaskSummaryAndWorkspaceFallbackAreUnavailable() throws {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+        let snapshot = makeSnapshot(
+            sessionID: "session-claude-prompt-title",
+            cwd: "/Users/chenyuanjie",
+            observedAt: now.addingTimeInterval(-10),
+            activity: ClaudeCodeSessionActivity(status: .waiting, waitingFor: "approve Bash"),
+            transcript: ClaudeCodeTranscriptSnapshot(
+                fallbackState: .attention,
+                modelLabel: "claude-sonnet-4",
+                taskSummary: nil,
+                hasInProgressToolUse: false,
+                lastPrompt: "按这份 plan 开始 coding",
+                userPromptCandidates: ["排查 Claude 线程标题兜底"]
+            )
+        )
+
+        let result = ClaudeMonitorArbitrator.compute(
+            snapshots: [snapshot],
+            baseWatchedPaths: ["/tmp/claude"],
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        let thread = try XCTUnwrap(result.state.threads.first)
+        XCTAssertEqual(thread.title, "排查 Claude 线程标题兜底")
+        XCTAssertEqual(thread.detail, "等待批准 Bash")
+        XCTAssertNil(thread.workspaceLabel)
+        XCTAssertEqual(thread.titleSource, .claudePromptSummary)
+    }
+
+    func testArbitratorDoesNotRenderThreadOnlyBecauseExecutionOnlyLastPromptExists() {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+        let snapshot = makeSnapshot(
+            sessionID: "session-noisy-last-prompt",
+            cwd: "/Users/chenyuanjie",
+            observedAt: now.addingTimeInterval(-10),
+            activity: nil,
+            transcript: ClaudeCodeTranscriptSnapshot(
+                fallbackState: .idle,
+                modelLabel: nil,
+                taskSummary: nil,
+                hasInProgressToolUse: false,
+                lastPrompt: "按这份 plan 开始 coding",
+                userPromptCandidates: []
+            )
+        )
+
+        let result = ClaudeMonitorArbitrator.compute(
+            snapshots: [snapshot],
+            baseWatchedPaths: ["/tmp/claude"],
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        XCTAssertTrue(result.state.online)
+        XCTAssertEqual(result.state.availability, .available)
+        XCTAssertEqual(result.state.globalState, .idle)
+        XCTAssertTrue(result.state.threads.isEmpty)
+    }
+
     private func makeSnapshot(
         sessionID: String,
         cwd: String,

@@ -30,4 +30,26 @@ final class CodexSessionIndexParserTests: XCTestCase {
         XCTAssertEqual(snapshots.first?.threadID, "thread-1")
         XCTAssertEqual(snapshots.first?.threadName, "Valid")
     }
+
+    func testParseSessionIndexIgnoresUndefinedThreadNameAndUsesTitle() {
+        let jsonl = """
+        {"id":"thread-1","thread_name":"undefined","title":"整理 Codex 线程标题","updated_at":"2026-04-11T02:00:00Z"}
+        """
+
+        let snapshots = CodexSessionIndexParser.parse(jsonl)
+
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots.first?.threadName, "整理 Codex 线程标题")
+    }
+
+    func testParseSessionIndexNormalizesUndefinedTitleToEmptyThreadName() {
+        let jsonl = """
+        {"id":"thread-1","thread_name":"undefined","title":"undefined","updated_at":"2026-04-11T02:00:00Z"}
+        """
+
+        let snapshots = CodexSessionIndexParser.parse(jsonl)
+
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshots.first?.threadName, "")
+    }
 }

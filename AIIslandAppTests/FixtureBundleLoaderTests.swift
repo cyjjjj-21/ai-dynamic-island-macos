@@ -106,6 +106,53 @@ final class FixtureBundleLoaderTests: XCTestCase {
         }
     }
 
+    func testAgentThreadDecodesLegacyTaskLabelOnlyShape() throws {
+        let data = Data(
+            """
+            {
+              "id": "thread-legacy",
+              "taskLabel": "旧版线程标题",
+              "modelLabel": "gpt-5.4",
+              "contextRatio": 0.42,
+              "state": "working"
+            }
+            """.utf8
+        )
+
+        let thread = try JSONDecoder().decode(AgentThread.self, from: data)
+
+        XCTAssertEqual(thread.id, "thread-legacy")
+        XCTAssertEqual(thread.title, "旧版线程标题")
+        XCTAssertNil(thread.detail)
+        XCTAssertNil(thread.workspaceLabel)
+        XCTAssertEqual(thread.modelLabel, "gpt-5.4")
+        XCTAssertEqual(try XCTUnwrap(thread.contextRatio), 0.42, accuracy: 0.0001)
+        XCTAssertEqual(thread.state, .working)
+        XCTAssertNil(thread.lastUpdatedAt)
+        XCTAssertEqual(thread.titleSource, .unknown)
+    }
+
+    func testAgentThreadStillEncodesLegacyTaskLabelForCompatibility() throws {
+        let thread = AgentThread(
+            id: "thread-legacy",
+            title: "新版线程标题",
+            detail: "执行工具中",
+            workspaceLabel: "ai-dynamic-island-macos",
+            modelLabel: "gpt-5.4",
+            contextRatio: 0.42,
+            state: .working,
+            lastUpdatedAt: nil,
+            titleSource: .codexPromptSummary
+        )
+
+        let payload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(thread)) as? [String: Any]
+        )
+
+        XCTAssertEqual(payload["title"] as? String, "新版线程标题")
+        XCTAssertEqual(payload["taskLabel"] as? String, "新版线程标题")
+    }
+
     private func ratioValues(in state: AgentState) -> [Double] {
         let quotaRatios = [
             state.quota?.fiveHourRatio,

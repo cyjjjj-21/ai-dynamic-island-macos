@@ -4,6 +4,80 @@ import XCTest
 @testable import AIIslandCore
 
 final class FallbackRenderingRulesTests: XCTestCase {
+    func testThreadPresentationUsesStableTitleAndSeparateDetail() {
+        let now = Date(timeIntervalSince1970: 1_713_000_018)
+        let thread = AgentThread(
+            id: "thread-1",
+            title: "Codex 配额展示优化",
+            detail: "执行工具中",
+            workspaceLabel: "ai-dynamic-island-macos",
+            modelLabel: "gpt-5.4",
+            contextRatio: 0.42,
+            state: .working,
+            lastUpdatedAt: Date(timeIntervalSince1970: 1_713_000_000),
+            titleSource: .codexPromptSummary
+        )
+
+        let row = ThreadRowPresentation(thread: thread, isPrimary: true, now: now)
+
+        XCTAssertEqual(row.threadTitle, "Codex 配额展示优化")
+        XCTAssertEqual(row.detailCopy, "执行工具中")
+        XCTAssertEqual(row.recencyCopy, "18s")
+        XCTAssertEqual(row.contextCopy, "Context 42%")
+        XCTAssertEqual(row.modelLabel, "GPT-5.4")
+    }
+
+    func testSectionPresentationMarksOnlyFirstVisibleThreadAsPrimary() {
+        let now = Date(timeIntervalSince1970: 1_713_000_120)
+        let state = AgentState(
+            kind: .codex,
+            online: true,
+            availability: .available,
+            globalState: .working,
+            threads: [
+                AgentThread(
+                    id: "primary",
+                    title: "Codex 配额展示优化",
+                    detail: "执行工具中",
+                    workspaceLabel: "ai-dynamic-island-macos",
+                    modelLabel: "gpt-5.4",
+                    contextRatio: 0.42,
+                    state: .working,
+                    lastUpdatedAt: now.addingTimeInterval(-12),
+                    titleSource: .codexPromptSummary
+                ),
+                AgentThread(
+                    id: "secondary-a",
+                    title: "Claude 多线程仲裁",
+                    detail: "等待批准 Bash",
+                    workspaceLabel: "ai-dynamic-island-macos",
+                    modelLabel: "claude-sonnet-4",
+                    contextRatio: 0.31,
+                    state: .attention,
+                    lastUpdatedAt: now.addingTimeInterval(-30),
+                    titleSource: .claudeTaskSummary
+                ),
+                AgentThread(
+                    id: "secondary-b",
+                    title: "自动化未读消息排查",
+                    detail: "最近活跃",
+                    workspaceLabel: "ai-dynamic-island-macos",
+                    modelLabel: "gpt-5.4-mini",
+                    contextRatio: 0.19,
+                    state: .idle,
+                    lastUpdatedAt: now.addingTimeInterval(-48),
+                    titleSource: .codexPromptSummary
+                )
+            ],
+            quota: nil
+        )
+
+        let presentation = AgentSectionPresentation(state: state, now: now)
+
+        XCTAssertEqual(presentation.visibleThreads.count, 3)
+        XCTAssertEqual(presentation.visibleThreads.map { $0.isPrimary }, [true, false, false])
+    }
+
     func testOfflineTakesPrecedenceOverQuotaUnavailableCopy() {
         let state = AgentState(
             kind: .codex,
@@ -75,38 +149,58 @@ final class FallbackRenderingRulesTests: XCTestCase {
             threads: [
                 AgentThread(
                     id: "one",
-                    taskLabel: "Tune island spacing",
+                    title: "Tune island spacing",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "gpt-5.4-internal-preview-long-build-string",
                     contextRatio: 0.41,
-                    state: .working
+                    state: .working,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 ),
                 AgentThread(
                     id: "two",
-                    taskLabel: "Implement hover hotzone",
+                    title: "Implement hover hotzone",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "gpt-5.4-mini",
                     contextRatio: 0.34,
-                    state: .thinking
+                    state: .thinking,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 ),
                 AgentThread(
                     id: "three",
-                    taskLabel: "Wire shell pin state",
+                    title: "Wire shell pin state",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "gpt-5.4",
                     contextRatio: 0.39,
-                    state: .working
+                    state: .working,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 ),
                 AgentThread(
                     id: "four",
-                    taskLabel: "Add quota fallback",
+                    title: "Add quota fallback",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "gpt-5.4-mini",
                     contextRatio: 0.22,
-                    state: .idle
+                    state: .idle,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 ),
                 AgentThread(
                     id: "five",
-                    taskLabel: "Record motion samples",
+                    title: "Record motion samples",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "gpt-5.4",
                     contextRatio: 0.27,
-                    state: .idle
+                    state: .idle,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 )
             ],
             quota: AgentQuota(
@@ -132,10 +226,14 @@ final class FallbackRenderingRulesTests: XCTestCase {
             threads: [
                 AgentThread(
                     id: "claude-context-gap",
-                    taskLabel: "Check provider context",
+                    title: "Check provider context",
+                    detail: nil,
+                    workspaceLabel: nil,
                     modelLabel: "kimi-k2.5-long-provider-build-2026-04-experimental",
                     contextRatio: nil,
-                    state: .idle
+                    state: .idle,
+                    lastUpdatedAt: nil,
+                    titleSource: .unknown
                 )
             ],
             quota: nil

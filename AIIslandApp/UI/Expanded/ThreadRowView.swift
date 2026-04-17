@@ -8,8 +8,8 @@ struct ThreadRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(presentation.taskLabel)
-                    .font(IslandPalette.taskTitleFont)
+                Text(presentation.threadTitle)
+                    .font(presentation.isPrimary ? IslandPalette.primaryThreadTitleFont : IslandPalette.secondaryThreadTitleFont)
                     .foregroundStyle(IslandPalette.primaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -17,11 +17,11 @@ struct ThreadRowView: View {
                 Spacer(minLength: 0)
 
                 Text(presentation.modelLabel)
-                    .font(IslandPalette.metadataStrongFont)
-                    .foregroundStyle(IslandPalette.primaryText.opacity(0.84))
+                    .font(presentation.isPrimary ? IslandPalette.metadataStrongFont : IslandPalette.metadataFont)
+                    .foregroundStyle(IslandPalette.primaryText.opacity(presentation.isPrimary ? 0.84 : 0.72))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                    .frame(width: 92, alignment: .trailing)
+                    .frame(width: presentation.isPrimary ? 90 : 78, alignment: .trailing)
             }
 
             HStack(alignment: .center, spacing: 8) {
@@ -30,7 +30,7 @@ struct ThreadRowView: View {
                         .fill(stateTint(for: presentation.state))
                         .frame(width: 5, height: 5)
 
-                    Text(presentation.stateCopy)
+                    Text(presentation.detailCopy)
                         .font(IslandPalette.metadataFont)
                         .foregroundStyle(stateTint(for: presentation.state).opacity(0.92))
                         .lineLimit(1)
@@ -39,22 +39,40 @@ struct ThreadRowView: View {
                 .padding(.vertical, 3)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(stateTint(for: presentation.state).opacity(0.08))
+                        .fill(stateTint(for: presentation.state).opacity(presentation.isPrimary ? 0.12 : 0.08))
                 )
 
                 Spacer(minLength: 0)
 
-                Text(presentation.contextCopy)
-                    .font(IslandPalette.metadataFont)
-                    .foregroundStyle(IslandPalette.secondaryText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(spacing: 6) {
+                    if let recencyCopy = presentation.recencyCopy {
+                        Text(recencyCopy)
+                            .font(IslandPalette.metadataFont)
+                            .foregroundStyle(IslandPalette.tertiaryText)
+                            .lineLimit(1)
+                    }
+
+                    Text(presentation.contextCopy)
+                        .font(IslandPalette.metadataFont)
+                        .foregroundStyle(IslandPalette.secondaryText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
             }
         }
-        .padding(.vertical, 8)
+        .padding(.horizontal, presentation.isPrimary ? 4 : 0)
+        .padding(.vertical, presentation.isPrimary ? IslandPalette.primaryThreadVerticalPadding : IslandPalette.secondaryThreadVerticalPadding)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    presentation.isPrimary
+                    ? stateTint(for: presentation.state).opacity(0.055)
+                    : Color.clear
+                )
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(presentation.taskLabel), \(presentation.modelLabel), \(presentation.contextCopy), \(presentation.stateCopy)"
+            "\(presentation.threadTitle), \(presentation.detailCopy), \(presentation.modelLabel), \(presentation.contextCopy)\(presentation.recencyCopy.map { ", \($0)" } ?? "")"
         )
     }
 

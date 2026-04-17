@@ -21,30 +21,50 @@ struct AgentSectionPresentation: Equatable, Sendable {
     }
 
     init(state: AgentState) {
+        self.init(state: state, now: Date())
+    }
+
+    init(state: AgentState, now: Date) {
         kind = state.kind
         title = state.kind == .codex ? "Codex" : "Claude Code"
         globalState = state.globalState
         primaryStatusCopy = FallbackRenderingRules.primaryStatusCopy(for: state)
         emptyStateCopy = FallbackRenderingRules.emptyStateCopy(for: state)
         quotaPresentation = FallbackRenderingRules.quotaPresentation(for: state)
-        visibleThreads = FallbackRenderingRules.visibleThreads(for: state).map(ThreadRowPresentation.init)
+        visibleThreads = FallbackRenderingRules.visibleThreads(for: state)
+            .enumerated()
+            .map { index, thread in
+                ThreadRowPresentation(thread: thread, isPrimary: index == 0, now: now)
+            }
         overflowCount = FallbackRenderingRules.overflowCount(for: state)
     }
 }
 
 struct ThreadRowPresentation: Identifiable, Equatable, Sendable {
     let id: String
+    let threadTitle: String
     let taskLabel: String
+    let detailCopy: String
     let modelLabel: String
     let contextCopy: String
+    let recencyCopy: String?
     let state: AgentGlobalState
+    let isPrimary: Bool
 
     init(thread: AgentThread) {
+        self.init(thread: thread, isPrimary: false, now: Date())
+    }
+
+    init(thread: AgentThread, isPrimary: Bool, now: Date) {
         id = thread.id
-        taskLabel = thread.taskLabel
+        threadTitle = thread.title
+        taskLabel = thread.title
+        detailCopy = Self.compactStateCopy(detail: thread.detail, state: thread.state)
         modelLabel = ModelLabelFormatter.displayName(for: thread.modelLabel)
         contextCopy = FallbackRenderingRules.contextCopy(for: thread.contextRatio)
+        recencyCopy = FallbackRenderingRules.recencyCopy(for: thread.lastUpdatedAt, now: now)
         state = thread.state
+        self.isPrimary = isPrimary
     }
 
     var stateCopy: String {
@@ -59,6 +79,25 @@ struct ThreadRowPresentation: Identifiable, Equatable, Sendable {
             return "Attention"
         case .offline:
             return "Offline"
+        }
+    }
+
+    private static func compactStateCopy(detail: String?, state: AgentGlobalState) -> String {
+        if let detail, !detail.isEmpty {
+            return detail
+        }
+
+        switch state {
+        case .idle:
+            return "最近活跃"
+        case .thinking:
+            return "思考中"
+        case .working:
+            return "执行工具中"
+        case .attention:
+            return "等待确认"
+        case .offline:
+            return "未运行"
         }
     }
 }
@@ -195,5 +234,20 @@ enum FallbackRenderingRules {
 
         let percentage = Int((ratio * 100).rounded())
         return "\(percentage)%"
+    }
+
+    static func recencyCopy(for date: Date?, now: Date) -> String? {
+        guard let date else {
+            return nil
+        }
+
+        let delta = Int(max(0, now.timeIntervalSince(date)))
+        if delta < 60 {
+            return "\(delta)s"
+        }
+        if delta < 3600 {
+            return "\(delta / 60)m"
+        }
+        return "\(delta / 3600)h"
     }
 }

@@ -108,6 +108,47 @@ final class ClaudeCodeSnapshotParserTests: XCTestCase {
         XCTAssertTrue(snapshot.hasInProgressToolUse)
     }
 
+    func testParseTranscriptTailExtractsLastPromptWithoutChangingFallbackState() {
+        let transcript = """
+        {"type":"assistant","message":{"model":"kimi-k2.5","usage":{"input_tokens":128},"stop_reason":"end_turn","content":[]}}
+        {"type":"last-prompt","lastPrompt":"关闭灵动岛并构建最新版"}
+        """
+
+        let snapshot = ClaudeCodeSnapshotParser.parseTranscriptTail(transcript)
+
+        XCTAssertEqual(snapshot.lastPrompt, "关闭灵动岛并构建最新版")
+        XCTAssertEqual(snapshot.fallbackState, .idle)
+    }
+
+    func testParseTranscriptTailCollectsExternalUserPromptCandidatesButSkipsToolResults() {
+        let transcript = """
+        {"type":"user","userType":"external","message":{"content":[{"type":"text","text":"排查 Claude 线程标题兜底"}]}}
+        {"type":"user","userType":"internal","message":{"content":[{"type":"text","text":"内部系统生成的 user 消息"}]}}
+        {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"tool-1","content":"done"}]}}
+        {"type":"user","message":{"content":[{"type":"text","text":"补充 Claude prompt fallback 测试"}]}}
+        """
+
+        let snapshot = ClaudeCodeSnapshotParser.parseTranscriptTail(transcript)
+
+        XCTAssertEqual(
+            snapshot.userPromptCandidates,
+            ["排查 Claude 线程标题兜底", "补充 Claude prompt fallback 测试"]
+        )
+    }
+
+    func testParseTranscriptTailSkipsToolResultsWhenMixedWithUserTextBlocks() {
+        let transcript = """
+        {"type":"user","message":{"content":[{"type":"text","text":"排查 Claude 线程标题兜底"},{"type":"tool_result","tool_use_id":"tool-1","content":"done"},{"type":"input_text","text":"补充同条消息混排测试"}]}}
+        """
+
+        let snapshot = ClaudeCodeSnapshotParser.parseTranscriptTail(transcript)
+
+        XCTAssertEqual(
+            snapshot.userPromptCandidates,
+            ["排查 Claude 线程标题兜底", "补充同条消息混排测试"]
+        )
+    }
+
     func testResolveTaskLabelPrefersWaitingReasonThenTaskSummaryThenDirectoryName() {
         let waitingActivity = ClaudeCodeSessionActivity(status: .waiting, waitingFor: "approve Bash")
         let transcript = ClaudeCodeTranscriptSnapshot(

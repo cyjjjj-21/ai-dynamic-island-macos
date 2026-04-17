@@ -174,6 +174,100 @@ final class CodexMonitorArbitratorTests: XCTestCase {
         XCTAssertTrue(result.state.threads.isEmpty)
     }
 
+    func testArbitratorResolvesStableTitleAndWorkspaceMetadataForCodexThreads() throws {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+
+        let result = CodexMonitorArbitrator.compute(
+            indexedThreads: [],
+            parsedSnapshots: [
+                makeSnapshot(
+                    sessionID: "thread-codex",
+                    state: .working,
+                    updatedAt: now.addingTimeInterval(-8),
+                    promptCandidates: ["继续把 Codex 配额展示做扎实", "顺便修一下配额刷新时间的对齐"],
+                    titleHint: "查找自动化未读消息来源<br>ꕥꕥ ti...",
+                    workspacePath: "/Users/chenyuanjie/developer/ai-dynamic-island-macos"
+                )
+            ],
+            subagentActivityByParentID: [:],
+            hasReadableArtifacts: true,
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        let thread = try XCTUnwrap(result.state.threads.first)
+        XCTAssertEqual(thread.title, "Codex 配额展示优化")
+        XCTAssertEqual(thread.workspaceLabel, "ai-dynamic-island-macos")
+        XCTAssertEqual(thread.titleSource, .codexPromptSummary)
+    }
+
+    func testArbitratorFoldsSubagentActivityIntoParentDetailWithoutAddingRows() {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+
+        let result = CodexMonitorArbitrator.compute(
+            indexedThreads: [],
+            parsedSnapshots: [
+                makeSnapshot(
+                    sessionID: "thread-main",
+                    state: .working,
+                    updatedAt: now.addingTimeInterval(-5),
+                    promptCandidates: ["评估 ai dynamic island 优化方向"],
+                    workspacePath: "/Users/chenyuanjie/developer/ai-dynamic-island-macos"
+                )
+            ],
+            subagentActivityByParentID: [
+                "thread-main": CodexSubagentActivity(
+                    parentThreadID: "thread-main",
+                    activeCount: 2,
+                    latestUpdatedAt: now.addingTimeInterval(-2)
+                )
+            ],
+            hasReadableArtifacts: true,
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        XCTAssertEqual(result.state.threads.count, 1)
+        XCTAssertEqual(result.state.threads.first?.detail, "2 个子任务有更新")
+    }
+
+    func testArbitratorKeepsPrimaryDetailReadableWhenSubagentSummaryWouldOverflow() {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+
+        let result = CodexMonitorArbitrator.compute(
+            indexedThreads: [],
+            parsedSnapshots: [
+                makeSnapshot(
+                    sessionID: "thread-main",
+                    state: .attention,
+                    updatedAt: now.addingTimeInterval(-5),
+                    promptCandidates: ["评估 ai dynamic island 优化方向"],
+                    workspacePath: "/Users/chenyuanjie/developer/ai-dynamic-island-macos",
+                    latestAssistantMessage: "Need your approval before I continue."
+                )
+            ],
+            subagentActivityByParentID: [
+                "thread-main": CodexSubagentActivity(
+                    parentThreadID: "thread-main",
+                    activeCount: 2,
+                    latestUpdatedAt: now.addingTimeInterval(-2)
+                )
+            ],
+            hasReadableArtifacts: true,
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        XCTAssertEqual(result.state.threads.count, 1)
+        XCTAssertEqual(result.state.threads.first?.detail, "等待你的确认")
+    }
+
     private func makeSnapshot(
         sessionID: String,
         state: AgentGlobalState,
@@ -185,7 +279,11 @@ final class CodexMonitorArbitratorTests: XCTestCase {
         weeklyResetsAt: Date? = nil,
         trustLevel: CodexSnapshotTrustLevel = .eventDerived,
         hasStructuredTokenSignal: Bool = false,
-        hasStructuredActivitySignal: Bool = true
+        hasStructuredActivitySignal: Bool = true,
+        promptCandidates: [String] = [],
+        titleHint: String? = nil,
+        workspacePath: String? = nil,
+        latestAssistantMessage: String? = nil
     ) -> CodexSessionSnapshot {
         CodexSessionSnapshot(
             sessionID: sessionID,
@@ -200,7 +298,11 @@ final class CodexMonitorArbitratorTests: XCTestCase {
             updatedAt: updatedAt,
             trustLevel: trustLevel,
             hasStructuredTokenSignal: hasStructuredTokenSignal,
-            hasStructuredActivitySignal: hasStructuredActivitySignal
+            hasStructuredActivitySignal: hasStructuredActivitySignal,
+            promptCandidates: promptCandidates,
+            titleHint: titleHint,
+            workspacePath: workspacePath,
+            latestAssistantMessage: latestAssistantMessage
         )
     }
 }

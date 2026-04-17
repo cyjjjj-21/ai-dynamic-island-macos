@@ -454,6 +454,57 @@ final class CodexMonitorSmokeTests: XCTestCase {
         XCTAssertEqual(monitor.codexState.threads.first?.taskLabel, "重启 ai 灵动岛我检查下")
     }
 
+    func testRefreshNowFoldsSuppressedSubagentActivityIntoParentThreadDetail() throws {
+        let fileManager = FileManager.default
+        let rootURL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessionsDayURL = rootURL
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("2026", isDirectory: true)
+            .appendingPathComponent("04", isDirectory: true)
+            .appendingPathComponent("15", isDirectory: true)
+
+        try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: rootURL) }
+
+        let mainThreadID = "thread-main"
+        let subagentThreadID = "thread-subagent"
+        let mainTime = Date().addingTimeInterval(-20)
+        let subagentTime = Date().addingTimeInterval(-2)
+        let sessionIndexJSONL = """
+        {"id":"\(mainThreadID)","thread_name":"评估 ai dynamic island 优化方向","updated_at":"\(isoString(mainTime))"}
+        {"id":"\(subagentThreadID)","thread_name":"Review concurrency fix","updated_at":"\(isoString(subagentTime))"}
+        """
+        try sessionIndexJSONL.data(using: .utf8)?.write(
+            to: rootURL.appendingPathComponent("session_index.jsonl")
+        )
+
+        let mainJSONL = """
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(-1)))","type":"session_meta","payload":{"id":"\(mainThreadID)","cwd":"/Users/chenyuanjie/developer/ai-dynamic-island-macos","model":"gpt-5.4"}}
+        {"timestamp":"\(isoString(mainTime))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-main","content":[{"type":"input_text","text":"评估 ai dynamic island 优化方向"}]}}
+        {"timestamp":"\(isoString(mainTime.addingTimeInterval(1)))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-main"}}
+        """
+        try mainJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(mainThreadID).jsonl")
+        )
+
+        let subagentJSONL = """
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-2)))","type":"session_meta","payload":{"id":"\(subagentThreadID)","cwd":"/Users/chenyuanjie/developer/ai-dynamic-island-macos","source":{"subagent":{"thread_spawn":{"parent_thread_id":"\(mainThreadID)","depth":1,"agent_nickname":"Zeno","agent_role":"explorer"}}},"agent_nickname":"Zeno","agent_role":"explorer"}}
+        {"timestamp":"\(isoString(subagentTime.addingTimeInterval(-1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-subagent","content":[{"type":"input_text","text":"Please re-review the updated version."}]}}
+        {"timestamp":"\(isoString(subagentTime))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-subagent"}}
+        """
+        try subagentJSONL.data(using: .utf8)?.write(
+            to: sessionsDayURL.appendingPathComponent("\(subagentThreadID).jsonl")
+        )
+
+        let monitor = CodexMonitor(codexHomePath: rootURL.path)
+        monitor.refreshNow()
+
+        XCTAssertEqual(monitor.codexState.threads.count, 1)
+        XCTAssertEqual(monitor.codexState.threads.first?.id, mainThreadID)
+        XCTAssertEqual(monitor.codexState.threads.first?.detail, "1 个子任务有更新")
+    }
+
     func testRefreshNowIgnoresIndexedSubagentThreadWhenSessionHeaderLineIsIncomplete() throws {
         let fileManager = FileManager.default
         let rootURL = fileManager.temporaryDirectory
