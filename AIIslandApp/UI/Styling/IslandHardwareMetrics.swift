@@ -21,7 +21,7 @@ struct IslandHardwareMetrics: Equatable, Sendable {
         bandHeight: 32.5,
         lobeWidth: 124,
         expandedCardWidth: 392,
-        expandedCanvasHeight: 340
+        expandedCanvasHeight: 628
     )
 
     /// Detect actual notch geometry from the primary screen's auxiliary areas.

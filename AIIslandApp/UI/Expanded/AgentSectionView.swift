@@ -6,25 +6,22 @@ struct AgentSectionView: View {
     let presentation: AgentSectionPresentation
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(presentation.title)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(IslandPalette.sectionTitleFont)
                         .foregroundStyle(IslandPalette.primaryText)
 
                     Text(presentation.primaryStatusCopy)
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .font(IslandPalette.sectionStatusFont)
                         .foregroundStyle(IslandPalette.secondaryText)
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 0)
-            }
 
-            if presentation.kind == .codex,
-               let quotaPresentation = presentation.quotaPresentation {
-                QuotaStripView(presentation: quotaPresentation)
+                statusBadge
             }
 
             if let emptyStateCopy = presentation.emptyStateCopy {
@@ -38,8 +35,10 @@ struct AgentSectionView: View {
                         ThreadRowView(presentation: thread)
 
                         if index < presentation.visibleThreads.count - 1 {
-                            Divider()
-                                .overlay(IslandPalette.shellStroke.opacity(0.32))
+                            Rectangle()
+                                .fill(IslandPalette.divider)
+                                .frame(height: 1)
+                                .padding(.leading, 2)
                         }
                     }
 
@@ -48,13 +47,56 @@ struct AgentSectionView: View {
                             Spacer(minLength: 0)
                             Text(overflowSummaryCopy)
                                 .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                                .foregroundStyle(IslandPalette.secondaryText)
+                                .foregroundStyle(IslandPalette.tertiaryText)
                         }
                         .padding(.top, 5)
                     }
                 }
             }
+
+            if presentation.kind == .codex,
+               let quotaPresentation = presentation.quotaPresentation {
+                Rectangle()
+                    .fill(IslandPalette.divider)
+                    .frame(height: 1)
+
+                QuotaStripView(presentation: quotaPresentation)
+            }
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+    }
+
+    private var statusBadge: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(tint(for: presentation.globalState))
+                .frame(width: 5, height: 5)
+
+            Text(presentation.primaryStatusCopy)
+                .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(tint(for: presentation.globalState).opacity(0.92))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule(style: .continuous)
+                .fill(tint(for: presentation.globalState).opacity(0.09))
+        )
+    }
+
+    private func tint(for state: AgentGlobalState) -> Color {
+        switch state {
+        case .idle:
+            return IslandPalette.idleTint
+        case .thinking:
+            return IslandPalette.claudeTint
+        case .working:
+            return IslandPalette.codexTint
+        case .attention:
+            return IslandPalette.attentionTint
+        case .offline:
+            return IslandPalette.secondaryText
+        }
     }
 }

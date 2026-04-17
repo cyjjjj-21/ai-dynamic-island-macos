@@ -14,8 +14,8 @@ struct PromotionContainerView: View {
     var body: some View {
         let presentation = coordinator.presentation
         let p = presentation.progress
-        let cardOpacity = clamp((p - 0.34) / 0.58)
-        let cardOffset = (1 - cardOpacity) * -10
+        let cardOpacity = PromotionCardMotionMetrics.cardOpacity(for: p)
+        let cardOffset = PromotionCardMotionMetrics.cardOffset(for: cardOpacity)
 
         ZStack(alignment: .top) {
             CoreAnimationShellEffectsView(
@@ -48,9 +48,6 @@ struct PromotionContainerView: View {
         .allowsHitTesting(false)
     }
 
-    private func clamp(_ value: CGFloat) -> CGFloat {
-        min(max(value, 0), 1)
-    }
 }
 
 private struct CoreAnimationShellEffectsView: NSViewRepresentable {
@@ -134,12 +131,6 @@ private final class CoreAnimationShellEffectsNSView: NSView {
             height: max(1.5, revealHeight * 0.45)
         )
 
-        let resonance = MascotResonanceMatrix.resolve(
-            codexState: codexState,
-            claudeState: claudeState,
-            time: CACurrentMediaTime()
-        )
-
         CATransaction.begin()
         CATransaction.setDisableActions(false)
         CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: .easeOut))
@@ -149,16 +140,16 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         haloLayer.opacity = Float(0.16 * p)
 
         leftRevealLayer.frame = leftRect
-        leftRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.leftBoost * glowActivation))
+        leftRevealLayer.opacity = 0
         leftRevealLayer.cornerRadius = revealHeight > 0 ? IslandPalette.shellHeight / 2 : 0
 
         rightRevealLayer.frame = rightRect
-        rightRevealLayer.opacity = Float((0.42 * glowActivation) + (resonance.rightBoost * glowActivation))
+        rightRevealLayer.opacity = 0
         rightRevealLayer.cornerRadius = revealHeight > 0 ? IslandPalette.shellHeight / 2 : 0
 
         bridgeGlowLayer.frame = bridgeRect
         bridgeGlowLayer.cornerRadius = bridgeRect.height / 2
-        bridgeGlowLayer.opacity = Float((0.22 * glowActivation) * resonance.bridgeAlpha)
+        bridgeGlowLayer.opacity = 0
 
         CATransaction.commit()
     }
@@ -169,8 +160,8 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         }
 
         haloLayer.colors = [
-            NSColor.black.withAlphaComponent(0.30).cgColor,
-            NSColor.black.withAlphaComponent(0.04).cgColor
+            NSColor(calibratedWhite: 0.0, alpha: 0.24).cgColor,
+            NSColor(calibratedWhite: 0.0, alpha: 0.03).cgColor
         ]
         haloLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
         haloLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
@@ -178,23 +169,23 @@ private final class CoreAnimationShellEffectsNSView: NSView {
         haloLayer.opacity = 0
 
         leftRevealLayer.colors = [
-            NSColor(calibratedRed: 0.58, green: 0.86, blue: 0.96, alpha: 0.88).cgColor,
-            NSColor.white.withAlphaComponent(0.10).cgColor
+            NSColor(calibratedRed: 0.53, green: 0.77, blue: 0.85, alpha: 0.56).cgColor,
+            NSColor.white.withAlphaComponent(0.04).cgColor
         ]
         leftRevealLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
         leftRevealLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
         leftRevealLayer.opacity = 0
 
         rightRevealLayer.colors = [
-            NSColor(calibratedRed: 0.94, green: 0.66, blue: 0.67, alpha: 0.88).cgColor,
-            NSColor.white.withAlphaComponent(0.10).cgColor
+            NSColor(calibratedRed: 0.83, green: 0.66, blue: 0.64, alpha: 0.54).cgColor,
+            NSColor.white.withAlphaComponent(0.04).cgColor
         ]
         rightRevealLayer.startPoint = CGPoint(x: 0.0, y: 0.0)
         rightRevealLayer.endPoint = CGPoint(x: 1.0, y: 1.0)
         rightRevealLayer.opacity = 0
 
         bridgeGlowLayer.colors = [
-            NSColor.white.withAlphaComponent(0.35).cgColor,
+            NSColor.white.withAlphaComponent(0.18).cgColor,
             NSColor.white.withAlphaComponent(0.0).cgColor
         ]
         bridgeGlowLayer.startPoint = CGPoint(x: 0.5, y: 0.0)

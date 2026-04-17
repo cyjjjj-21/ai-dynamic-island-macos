@@ -82,4 +82,29 @@ final class IslandMotionCoordinatorTests: XCTestCase {
                 || coordinator.phase == .promoting(origin: .hover)
         )
     }
+
+    func testCollapsedMotionPhaseRequestsShellCollapseCompletion() {
+        XCTAssertEqual(
+            ShellMotionStateReconciler.inputForMotionPhaseChange(
+                .collapsed,
+                shellState: .collapsing
+            ),
+            .collapseAnimationCompleted
+        )
+    }
+
+    func testNonCollapsedMotionPhaseDoesNotRequestShellCollapseCompletion() {
+        XCTAssertNil(
+            ShellMotionStateReconciler.inputForMotionPhaseChange(
+                .collapsing(origin: .hover),
+                shellState: .collapsing
+            )
+        )
+        XCTAssertNil(
+            ShellMotionStateReconciler.inputForMotionPhaseChange(
+                .collapsed,
+                shellState: .hoverExpanded
+            )
+        )
+    }
 }

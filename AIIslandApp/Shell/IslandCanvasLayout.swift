@@ -60,8 +60,10 @@ struct IslandCanvasLayout {
         }
 
         switch shellState {
-        case .hoverExpanded, .pinnedExpanded, .collapsing:
+        case .hoverExpanded, .pinnedExpanded:
             return expandedCardFrame.contains(point)
+        case .collapsing:
+            return false
         case .collapsed:
             return false
         }

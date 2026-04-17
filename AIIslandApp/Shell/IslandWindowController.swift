@@ -9,15 +9,15 @@ final class IslandWindowController: NSWindowController {
     private let canvasLayout = IslandCanvasLayout.default
     private let islandSize = NSSize(width: IslandPalette.canvasWidth, height: IslandPalette.canvasHeight)
     private let islandWindow: NSPanel
-    private let shellInteractionController = ShellInteractionController(
-        initialState: .collapsed,
-        scheduler: MainQueueShellInteractionScheduler()
-    )
+    private let shellInteractionController: ShellInteractionController
     private let hotzoneView = HotzoneTrackingView()
     private var hostingView: NSHostingView<IslandRootView>!
     private var cancellables: Set<AnyCancellable> = []
 
-    init() {
+    init(
+        initialShellState: ShellInteractionState = .collapsed,
+        reviewConfiguration: AppReviewConfiguration? = nil
+    ) {
         let panel = IslandPanel(
             contentRect: NSRect(origin: .zero, size: islandSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -43,10 +43,18 @@ final class IslandWindowController: NSWindowController {
         islandWindow = panel
         panel.contentView = hotzoneView
 
+        shellInteractionController = ShellInteractionController(
+            initialState: initialShellState,
+            scheduler: MainQueueShellInteractionScheduler()
+        )
+
         super.init(window: panel)
 
         hostingView = NSHostingView(
-            rootView: IslandRootView(shellInteractionController: shellInteractionController)
+            rootView: IslandRootView(
+                shellInteractionController: shellInteractionController,
+                reviewConfiguration: reviewConfiguration
+            )
         )
         hostingView.translatesAutoresizingMaskIntoConstraints = false
         hostingView.wantsLayer = true

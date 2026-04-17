@@ -114,6 +114,37 @@ xcodebuild test \
   -only-testing:AIIslandAppTests/ClaudeCodeMonitorSmokeTests
 ```
 
+### Canonical Visual Review Capture
+
+For UI work in this repo, the primary review artifact should come from the real running app window, not only from offscreen SwiftUI snapshots.
+
+For deterministic expanded-state review, launch the app in a fixed scenario first:
+
+```bash
+scripts/launch_review_app.sh pinnedExpanded thread-overflow
+```
+
+The launcher uses `open -na ... --args` so the review app survives outside the current shell lifecycle while still receiving the explicit review state and scenario.
+
+Then export the canonical same-frame review bundle:
+
+```bash
+python3 scripts/capture_review_bundle.py --app AIIslandApp
+```
+
+The script writes a bundle directory containing:
+
+- `window.png`
+  A same-frame crop taken from `desktop.png` using the discovered on-screen AI Island window bounds.
+- `desktop.png`
+  A full desktop capture for context.
+- `metadata.json`
+  The selected window id, bounds, display scale, and crop rectangle used for the capture.
+
+This is the preferred “what you saw is what I reviewed” evidence path for visual QA because the context image and the focused crop come from the same real desktop frame.
+
+If the real desktop is too dark to inspect fine details, keep this bundle as the primary on-screen evidence and use `AIIslandAppTests/VisualSnapshotSmokeTests` as secondary offscreen evidence for pixel inspection of the island itself.
+
 ## Notable Test Coverage
 
 The repo intentionally leans on regression coverage because monitor behavior can drift subtly.
@@ -145,6 +176,14 @@ Available helper scripts:
   Checks packaged output expectations.
 - `scripts/overlay_notch_review.swift`
   Assists with notch/overlay review workflows.
+- `scripts/launch_review_app.sh`
+  Launches a deterministic review scenario using LaunchServices plus explicit review arguments.
+- `scripts/capture_review_bundle.py`
+  Exports a canonical visual review bundle using the real running app window plus desktop context and capture metadata.
+- `scripts/macos_window_info.swift`
+  Discovers the current on-screen macOS window metadata used by the review capture script.
+- `scripts/macos_display_info.swift`
+  Reports active display geometry and backing scale for same-frame crop calculation.
 
 ## Progress and Roadmap Context
 

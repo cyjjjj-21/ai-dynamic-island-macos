@@ -5,6 +5,7 @@ import AIIslandCore
 struct AgentSectionPresentation: Equatable, Sendable {
     let kind: AgentKind
     let title: String
+    let globalState: AgentGlobalState
     let primaryStatusCopy: String
     let emptyStateCopy: String?
     let quotaPresentation: QuotaStripPresentation?
@@ -22,6 +23,7 @@ struct AgentSectionPresentation: Equatable, Sendable {
     init(state: AgentState) {
         kind = state.kind
         title = state.kind == .codex ? "Codex" : "Claude Code"
+        globalState = state.globalState
         primaryStatusCopy = FallbackRenderingRules.primaryStatusCopy(for: state)
         emptyStateCopy = FallbackRenderingRules.emptyStateCopy(for: state)
         quotaPresentation = FallbackRenderingRules.quotaPresentation(for: state)

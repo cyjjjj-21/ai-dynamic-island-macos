@@ -6,40 +6,52 @@ struct ThreadRowView: View {
     let presentation: ThreadRowPresentation
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(presentation.taskLabel)
-                    .font(IslandPalette.titleFont)
+                    .font(IslandPalette.taskTitleFont)
                     .foregroundStyle(IslandPalette.primaryText)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                Text(presentation.stateCopy)
-                    .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(IslandPalette.secondaryText.opacity(0.82))
+                Spacer(minLength: 0)
+
+                Text(presentation.modelLabel)
+                    .font(IslandPalette.metadataStrongFont)
+                    .foregroundStyle(IslandPalette.primaryText.opacity(0.84))
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(width: 92, alignment: .trailing)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(presentation.modelLabel)
-                .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(IslandPalette.primaryText.opacity(0.88))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(width: 86, alignment: .leading)
+            HStack(alignment: .center, spacing: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(stateTint(for: presentation.state))
+                        .frame(width: 5, height: 5)
 
-            Text(presentation.contextCopy)
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundStyle(IslandPalette.secondaryText)
-                .lineLimit(1)
-                .frame(width: 74, alignment: .trailing)
+                    Text(presentation.stateCopy)
+                        .font(IslandPalette.metadataFont)
+                        .foregroundStyle(stateTint(for: presentation.state).opacity(0.92))
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(stateTint(for: presentation.state).opacity(0.08))
+                )
 
-            Circle()
-                .fill(stateTint(for: presentation.state))
-                .frame(width: 6, height: 6)
-                .shadow(color: stateTint(for: presentation.state).opacity(0.18), radius: 2, x: 0, y: 0)
+                Spacer(minLength: 0)
+
+                Text(presentation.contextCopy)
+                    .font(IslandPalette.metadataFont)
+                    .foregroundStyle(IslandPalette.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(presentation.taskLabel), \(presentation.modelLabel), \(presentation.contextCopy), \(presentation.stateCopy)"
@@ -55,7 +67,7 @@ struct ThreadRowView: View {
         case .working:
             return IslandPalette.codexTint.opacity(0.95)
         case .attention:
-            return Color(red: 0.97, green: 0.80, blue: 0.45)
+            return IslandPalette.attentionTint
         case .offline:
             return IslandPalette.secondaryText
         }

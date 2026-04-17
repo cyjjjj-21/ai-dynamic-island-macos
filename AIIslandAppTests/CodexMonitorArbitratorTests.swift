@@ -86,6 +86,48 @@ final class CodexMonitorArbitratorTests: XCTestCase {
         XCTAssertEqual((try? XCTUnwrap(quota?.weeklyRatio)) ?? -1, 0.65, accuracy: 0.0001)
     }
 
+    func testArbitratorCarriesForwardNewestQuotaResetTimes() throws {
+        let now = Date(timeIntervalSince1970: 1_713_000_000)
+        let olderReset = Date(timeIntervalSince1970: 1_776_250_000)
+        let newerPrimaryReset = Date(timeIntervalSince1970: 1_776_282_138)
+        let newerWeeklyReset = Date(timeIntervalSince1970: 1_776_475_167)
+
+        let older = makeSnapshot(
+            sessionID: "older",
+            state: .working,
+            updatedAt: now.addingTimeInterval(-90),
+            fiveHourRatio: 0.70,
+            weeklyRatio: 0.80,
+            fiveHourResetsAt: olderReset,
+            weeklyResetsAt: olderReset,
+            hasStructuredTokenSignal: true
+        )
+        let newer = makeSnapshot(
+            sessionID: "newer",
+            state: .thinking,
+            updatedAt: now.addingTimeInterval(-30),
+            fiveHourRatio: 0.55,
+            weeklyRatio: 0.65,
+            fiveHourResetsAt: newerPrimaryReset,
+            weeklyResetsAt: newerWeeklyReset,
+            hasStructuredTokenSignal: true
+        )
+
+        let result = CodexMonitorArbitrator.compute(
+            indexedThreads: [],
+            parsedSnapshots: [older, newer],
+            hasReadableArtifacts: true,
+            cachedModels: [:],
+            freshnessPolicy: .v02Smooth,
+            now: now,
+            trigger: "manual"
+        )
+
+        let quota = try XCTUnwrap(result.state.quota)
+        XCTAssertEqual(quota.fiveHourResetsAt, newerPrimaryReset)
+        XCTAssertEqual(quota.weeklyResetsAt, newerWeeklyReset)
+    }
+
     func testArbitratorBuildsDiagnosticsFromRecentParsedSnapshots() {
         let now = Date(timeIntervalSince1970: 1_713_000_000)
         let result = CodexMonitorArbitrator.compute(
@@ -139,6 +181,8 @@ final class CodexMonitorArbitratorTests: XCTestCase {
         modelLabel: String = "gpt-5.4",
         fiveHourRatio: Double? = nil,
         weeklyRatio: Double? = nil,
+        fiveHourResetsAt: Date? = nil,
+        weeklyResetsAt: Date? = nil,
         trustLevel: CodexSnapshotTrustLevel = .eventDerived,
         hasStructuredTokenSignal: Bool = false,
         hasStructuredActivitySignal: Bool = true
@@ -150,8 +194,8 @@ final class CodexMonitorArbitratorTests: XCTestCase {
             contextRatio: 0.25,
             fiveHourRatio: fiveHourRatio,
             weeklyRatio: weeklyRatio,
-            fiveHourResetsAt: nil,
-            weeklyResetsAt: nil,
+            fiveHourResetsAt: fiveHourResetsAt,
+            weeklyResetsAt: weeklyResetsAt,
             state: state,
             updatedAt: updatedAt,
             trustLevel: trustLevel,

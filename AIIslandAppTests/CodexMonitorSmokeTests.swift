@@ -137,8 +137,8 @@ final class CodexMonitorSmokeTests: XCTestCase {
         try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: rootURL) }
 
-        let staleID = "thread-stale"
-        let freshID = "thread-fresh"
+        let staleID = "019d7280-4a37-75a3-859a-29c3389b3831"
+        let freshID = "019d7280-4a37-75a3-859a-29c3389b3832"
         let staleTime = Date().addingTimeInterval(-2 * 60 * 60)
         let freshTime = Date().addingTimeInterval(-60)
         let staleTimestamp = isoString(staleTime)
@@ -156,8 +156,11 @@ final class CodexMonitorSmokeTests: XCTestCase {
         {"timestamp":"\(isoString(staleTime.addingTimeInterval(1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-stale","content":[{"type":"input_text","text":"Course correction for Task 1 based on..."}]}}
         {"timestamp":"\(isoString(staleTime.addingTimeInterval(2)))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-stale"}}
         """
-        try staleJSONL.data(using: .utf8)?.write(
-            to: sessionsDayURL.appendingPathComponent(staleID + ".jsonl")
+        let staleURL = sessionsDayURL.appendingPathComponent(staleID + ".jsonl")
+        try staleJSONL.data(using: .utf8)?.write(to: staleURL)
+        try fileManager.setAttributes(
+            [.modificationDate: staleTime],
+            ofItemAtPath: staleURL.path
         )
 
         let freshJSONL = """
@@ -165,8 +168,11 @@ final class CodexMonitorSmokeTests: XCTestCase {
         {"timestamp":"\(isoString(freshTime.addingTimeInterval(1)))","type":"response_item","payload":{"type":"message","role":"user","turn_id":"turn-fresh","content":[{"type":"input_text","text":"你运行一下app我来看看效果"}]}}
         {"timestamp":"\(isoString(freshTime.addingTimeInterval(2)))","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-fresh"}}
         """
-        try freshJSONL.data(using: .utf8)?.write(
-            to: sessionsDayURL.appendingPathComponent(freshID + ".jsonl")
+        let freshURL = sessionsDayURL.appendingPathComponent(freshID + ".jsonl")
+        try freshJSONL.data(using: .utf8)?.write(to: freshURL)
+        try fileManager.setAttributes(
+            [.modificationDate: freshTime],
+            ofItemAtPath: freshURL.path
         )
 
         let monitor = CodexMonitor(codexHomePath: rootURL.path)
@@ -269,7 +275,7 @@ final class CodexMonitorSmokeTests: XCTestCase {
         XCTAssertEqual(thread.state, .thinking)
     }
 
-    func testRefreshNowHidesThreadAfterVisibleIdleWindowButKeepsAvailabilityAvailable() throws {
+    func testRefreshNowUsesRecentSessionFileModificationTimeToKeepIdleThreadVisible() throws {
         let fileManager = FileManager.default
         let rootURL = fileManager.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -281,7 +287,7 @@ final class CodexMonitorSmokeTests: XCTestCase {
         try fileManager.createDirectory(at: sessionsDayURL, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: rootURL) }
 
-        let threadID = "thread-sunset-visible"
+        let threadID = "019d7280-4a37-75a3-859a-29c3389b3833"
         let signalAt = Date().addingTimeInterval(-26 * 60)
         let signalTimestamp = isoFormatter.string(from: signalAt)
         let sessionIndexJSONL = """
@@ -294,17 +300,19 @@ final class CodexMonitorSmokeTests: XCTestCase {
         let sessionJSONL = """
         {"timestamp":"\(signalTimestamp)","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4"}}
         {"timestamp":"\(signalTimestamp)","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+        {"timestamp":"\(signalTimestamp)","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"}}
         """
-        try sessionJSONL.data(using: .utf8)?.write(
-            to: sessionsDayURL.appendingPathComponent("rollout-2026-04-11T16-00-00-\(threadID).jsonl")
-        )
+        let sessionURL = sessionsDayURL.appendingPathComponent("rollout-2026-04-11T16-00-00-\(threadID).jsonl")
+        try sessionJSONL.data(using: .utf8)?.write(to: sessionURL)
 
         let monitor = CodexMonitor(codexHomePath: rootURL.path)
         monitor.refreshNow()
 
         XCTAssertEqual(monitor.codexState.availability, .available)
         XCTAssertEqual(monitor.codexState.globalState, .idle)
-        XCTAssertEqual(monitor.codexState.threads.count, 0)
+        XCTAssertEqual(monitor.codexState.threads.count, 1)
+        XCTAssertEqual(monitor.codexState.threads.first?.id, threadID)
+        XCTAssertEqual(monitor.codexState.threads.first?.state, .idle)
     }
 
     func testRefreshNowBecomesStatusUnavailableAfterLiveSignalWindowExpires() throws {
@@ -333,8 +341,11 @@ final class CodexMonitorSmokeTests: XCTestCase {
         {"timestamp":"\(signalTimestamp)","type":"turn_context","payload":{"turn_id":"turn-1","model":"gpt-5.4"}}
         {"timestamp":"\(signalTimestamp)","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
         """
-        try sessionJSONL.data(using: .utf8)?.write(
-            to: sessionsDayURL.appendingPathComponent("rollout-2026-04-11T15-50-00-\(threadID).jsonl")
+        let sessionURL = sessionsDayURL.appendingPathComponent("rollout-2026-04-11T15-50-00-\(threadID).jsonl")
+        try sessionJSONL.data(using: .utf8)?.write(to: sessionURL)
+        try fileManager.setAttributes(
+            [.modificationDate: signalAt],
+            ofItemAtPath: sessionURL.path
         )
 
         let monitor = CodexMonitor(codexHomePath: rootURL.path)

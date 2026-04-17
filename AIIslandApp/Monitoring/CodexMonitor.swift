@@ -333,6 +333,16 @@ final class CodexMonitor: ObservableObject {
                 )
             }
 
+            let freshestObservedAt: Date = {
+                let parsedUpdatedAt = snapshot.updatedAt ?? .distantPast
+                let indexedUpdatedAt = rawIndexedThreadByID[sessionFile.threadID]?.updatedAt ?? .distantPast
+                return max(parsedUpdatedAt, max(indexedUpdatedAt, sessionFile.modifiedAt))
+            }()
+            snapshot = CodexSessionSnapshotParser.replacing(
+                snapshot,
+                updatedAt: freshestObservedAt
+            )
+
             if snapshot.trustLevel != .insufficient
                 || snapshot.hasStructuredTokenSignal
                 || !snapshot.taskLabel.isEmpty

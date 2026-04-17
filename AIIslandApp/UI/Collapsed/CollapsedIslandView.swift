@@ -51,33 +51,6 @@ private struct ShellBandChrome: View {
     var body: some View {
         ShellBandShape()
             .fill(IslandPalette.shellFill, style: FillStyle(eoFill: true))
-            .overlay(alignment: .top) {
-                PhysicalNotchCutoutShape()
-                    .stroke(IslandPalette.shellStroke, lineWidth: 1)
-                    .frame(
-                        width: IslandPalette.physicalNotchWidth,
-                        height: IslandPalette.physicalNotchHeight
-                    )
-            }
-            .overlay(alignment: .top) {
-                PhysicalNotchCutoutShape()
-                    .stroke(IslandPalette.shellStroke, lineWidth: 1)
-                    .frame(
-                        width: IslandPalette.physicalNotchWidth,
-                        height: IslandPalette.physicalNotchHeight
-                    )
-            }
-            .overlay(alignment: .top) {
-                HStack(spacing: IslandPalette.lobeSpacing) {
-                    RoundedRectangle(cornerRadius: 0.5, style: .continuous)
-                        .fill(IslandPalette.shellTopHighlight)
-                        .frame(width: IslandPalette.lobeWidth - 18, height: 1)
-                    RoundedRectangle(cornerRadius: 0.5, style: .continuous)
-                        .fill(IslandPalette.shellTopHighlight)
-                        .frame(width: IslandPalette.lobeWidth - 18, height: 1)
-                }
-                .padding(.top, 1)
-            }
             .shadow(
                 color: IslandPalette.shellEdgeHalo,
                 radius: IslandPalette.shellEdgeHaloRadius,
@@ -99,13 +72,13 @@ private struct AgentCollapsedLobe: View {
     private var badgeTint: Color {
         switch agent.globalState {
         case .idle:
-            return tint.opacity(0.72)
+            return tint.opacity(0.68)
         case .thinking:
             return tint.opacity(0.92)
         case .working:
             return tint.opacity(1.0)
         case .attention:
-            return Color(red: 0.97, green: 0.80, blue: 0.45)
+            return IslandPalette.attentionTint
         case .offline:
             return IslandPalette.secondaryText
         }

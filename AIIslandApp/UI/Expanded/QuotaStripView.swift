@@ -4,15 +4,15 @@ struct QuotaStripView: View {
     let presentation: QuotaStripPresentation
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             if let availabilityCopy = presentation.availabilityCopy {
                 HStack(spacing: 8) {
                     Capsule(style: .continuous)
                         .fill(IslandPalette.codexTint.opacity(0.18))
-                        .frame(width: 14, height: 6)
+                        .frame(width: 14, height: 5)
 
                     Text(availabilityCopy)
-                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .font(IslandPalette.metadataFont)
                         .foregroundStyle(IslandPalette.secondaryText)
                 }
             } else {
@@ -38,32 +38,24 @@ struct QuotaStripView: View {
 
     @ViewBuilder
     private func quotaBand(title: String, ratioCopy: String, refreshCopy: String?, ratio: Double?, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            // 使用overlay实现精准对齐：标题固定宽度，百分比左对齐，刷新时间右对齐
-            ZStack(alignment: .leading) {
-                // 底层：标题 + 百分比（左对齐）
-                HStack(spacing: 6) {
-                    Text(title)
-                        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(IslandPalette.primaryText.opacity(0.92))
-                        .frame(width: 46, alignment: .leading)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(IslandPalette.metadataStrongFont)
+                    .foregroundStyle(IslandPalette.primaryText.opacity(0.9))
+                    .frame(width: 44, alignment: .leading)
 
-                    Text(ratioCopy)
-                        .font(.system(size: 8.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(IslandPalette.secondaryText)
+                Text(ratioCopy)
+                    .font(IslandPalette.metadataStrongFont)
+                    .foregroundStyle(IslandPalette.secondaryText)
 
-                    Spacer()
-                }
+                Spacer(minLength: 0)
 
-                // 上层：刷新时间（右对齐），只在有值时显示
                 if let refreshCopy = refreshCopy {
-                    HStack {
-                        Spacer()
-                        Text(refreshCopy)
-                            .font(.system(size: 8, weight: .medium, design: .rounded))
-                            .foregroundStyle(IslandPalette.secondaryText.opacity(0.8))
-                            .lineLimit(1)
-                    }
+                    Text(refreshCopy)
+                        .font(.system(size: 8, weight: .medium, design: .rounded))
+                        .foregroundStyle(IslandPalette.tertiaryText)
+                        .lineLimit(1)
                 }
             }
 
@@ -74,23 +66,23 @@ struct QuotaStripView: View {
                 ZStack(alignment: .leading) {
                     Capsule(style: .continuous)
                         .fill(Color.white.opacity(0.05))
-                        .frame(height: 3)
+                        .frame(height: 4)
 
                     Capsule(style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    tint.opacity(0.95),
-                                    tint.opacity(0.45)
+                                    tint.opacity(0.88),
+                                    tint.opacity(0.46)
                                 ],
                                 startPoint: .leading,
                                 endPoint: .trailing
                             )
                         )
-                        .frame(width: ratio == nil ? 8 : fillWidth, height: 3)
+                        .frame(width: ratio == nil ? 8 : fillWidth, height: 4)
                 }
             }
-            .frame(height: 3)
+            .frame(height: 4)
         }
     }
 }

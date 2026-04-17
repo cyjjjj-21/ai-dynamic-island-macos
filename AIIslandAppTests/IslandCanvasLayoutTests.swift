@@ -33,4 +33,11 @@ final class IslandCanvasLayoutTests: XCTestCase {
         XCTAssertTrue(layout.containsPointer(point, shellState: .hoverExpanded))
         XCTAssertTrue(layout.containsPointer(point, shellState: .pinnedExpanded))
     }
+
+    func testCollapsingPointerRegionDoesNotReopenFromExpandedCardArea() {
+        let layout = IslandCanvasLayout.default
+        let point = CGPoint(x: layout.expandedCardFrame.midX, y: layout.expandedCardFrame.midY)
+
+        XCTAssertFalse(layout.containsPointer(point, shellState: .collapsing))
+    }
 }

@@ -37,6 +37,31 @@ final class CodexSessionSnapshotParserTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(snapshot.contextRatio), 152634.0 / 258400.0, accuracy: 0.0001)
     }
 
+    func testParseSnapshotExtractsQuotaResetTimesFromUnixTimestamps() {
+        let primaryReset = 1_776_282_138
+        let weeklyReset = 1_776_475_167
+        let jsonl = """
+        {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":51200},"model_context_window":258400},"rate_limits":{"primary":{"used_percent":21.0,"resets_at":\(primaryReset)},"secondary":{"used_percent":57.0,"resets_at":\(weeklyReset)}}}}
+        """
+
+        let snapshot = CodexSessionSnapshotParser.parse(
+            jsonl,
+            sessionID: "thread-reset-times",
+            fallbackTaskLabel: "Fallback"
+        )
+
+        XCTAssertEqual(
+            try XCTUnwrap(snapshot.fiveHourResetsAt).timeIntervalSince1970,
+            TimeInterval(primaryReset),
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(snapshot.weeklyResetsAt).timeIntervalSince1970,
+            TimeInterval(weeklyReset),
+            accuracy: 0.001
+        )
+    }
+
     func testParseSnapshotResolvesWorkingVsThinkingVsAttention() {
         let workingJSONL = """
         {"type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
