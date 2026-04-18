@@ -4,7 +4,7 @@
 
 - Repo: `ai-dynamic-island-macos`
 - Current branch: `main`
-- Current HEAD: `dca3131` (polish promotion container glow effects)
+- Current HEAD: `fbe0e71` (launch polish pack)
 - Phase: phase-1 prototype, subagent-driven execution
 
 ---
@@ -835,3 +835,13 @@ Verification:
 - `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/ThreadTitleResolverTests -only-testing:AIIslandAppTests/CodexSessionSnapshotParserTests -only-testing:AIIslandAppTests/CodexMonitorArbitratorTests -only-testing:AIIslandAppTests/CodexMonitorSmokeTests`
 - `xcodebuild test -project AIIslandApp.xcodeproj -scheme AIIslandApp -destination 'platform=macOS' -only-testing:AIIslandAppTests/FallbackRenderingRulesTests -only-testing:AIIslandAppTests/ClaudeMonitorArbitratorTests -only-testing:AIIslandAppTests/ExpandedIslandReviewLayoutTests -only-testing:AIIslandAppTests/VisualSnapshotSmokeTests`
 - Real desktop QA was re-run with `scripts/launch_review_app.sh pinnedExpanded thread-overflow` followed by `python3 scripts/capture_review_bundle.py --app AIIslandApp`; the captured review window stayed at `449x628pt`, confirming this pass did not grow the expanded island vertically.
+
+## 2026-04-17: Relaunch + main sync check
+
+- Closed the running `AIIslandApp` process to avoid stale binary interference during verification.
+- Rebuilt from current latest `main` using a clean derived-data path:
+  - `xcodebuild -project AIIslandApp.xcodeproj -scheme AIIslandApp -configuration Debug -derivedDataPath build/DerivedData/relaunch clean build`
+- Relaunched the fresh app bundle from:
+  - `build/DerivedData/relaunch/Build/Products/Debug/AIIslandApp.app`
+- Re-closed the app per request and pushed `main`:
+  - `git push origin main` returned `Everything up-to-date`.

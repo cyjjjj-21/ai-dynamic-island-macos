@@ -14,7 +14,7 @@ enum IslandPalette {
     static let lobeFrameWidth: CGFloat = lobeWidth
     static let lobeSpacing: CGFloat = physicalNotchWidth
     static let expandedCardWidth: CGFloat = shellWidth
-    static let expandedCardTopSpacing: CGFloat = 4
+    static let expandedCardTopSpacing: CGFloat = 2
     static var diagnosticsEnabled: Bool {
         if ProcessInfo.processInfo.environment["AIISLAND_DIAGNOSTICS"] == "1" {
             return true
