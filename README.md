@@ -194,10 +194,11 @@ If you want the full implementation history instead of the high-level project su
 
 ## Status Summary
 
-As of `2026-04-15`, the prototype has:
+As of `2026-04-18`, the prototype has:
 
-- Claude multi-session monitor hardening merged
-- Codex monitor refresh-pipeline hardening merged
-- full `xcodebuild test` regression green on the current main branch
+- Claude/Codex monitor hardening merged (multi-session arbitration, refresh ordering, and stale-signal guardrails)
+- P0 thread naming/display uplift merged (stable semantic titles/details for Codex and Claude thread rows)
+- latest spacing polish merged for the shell-to-expanded-card seam (`expandedCardTopSpacing` tightened from `4` to `2`)
+- current `main` build verified with `xcodebuild build -project AIIslandApp.xcodeproj -scheme AIIslandApp -configuration Debug -derivedDataPath build/DerivedData/relaunch`
 
-That makes the current repo a credible prototype baseline for the next round of product polish, benchmarking, and UX refinement.
+That keeps the repo on a stable prototype baseline for continued UI polish, packaging checks, and benchmark-oriented iteration.
