@@ -6,6 +6,7 @@ import AIIslandCore
 
 struct PromotionContainerView: View {
     @ObservedObject var coordinator: IslandMotionCoordinator
+    @Bindable var expandedCardInteractionModel: ExpandedCardInteractionModel
     let codex: AgentState
     let claude: AgentState
     let codexDiagnostics: AgentMonitorDiagnostics
@@ -33,6 +34,7 @@ struct PromotionContainerView: View {
                     codexDiagnostics: codexDiagnostics,
                     claudeDiagnostics: claudeDiagnostics
                 )
+                .background(cardHeightReporter)
                 .padding(.top, IslandPalette.shellHeight + IslandPalette.expandedCardTopSpacing)
                 .offset(y: cardOffset)
                 .opacity(cardOpacity)
@@ -46,6 +48,18 @@ struct PromotionContainerView: View {
         .frame(width: IslandPalette.canvasWidth, height: IslandPalette.canvasHeight, alignment: .top)
         .compositingGroup()
         .allowsHitTesting(false)
+    }
+
+    private var cardHeightReporter: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    expandedCardInteractionModel.updateMeasuredCardHeight(proxy.size.height)
+                }
+                .onChange(of: proxy.size.height) { _, newValue in
+                    expandedCardInteractionModel.updateMeasuredCardHeight(newValue)
+                }
+        }
     }
 
 }

@@ -8,14 +8,17 @@ struct IslandRootView: View {
     @ObservedObject private var shellInteractionController: ShellInteractionController
     @StateObject private var codexMonitor = CodexMonitor()
     @StateObject private var claudeMonitor = ClaudeCodeMonitor()
+    @Bindable private var expandedCardInteractionModel: ExpandedCardInteractionModel
     private let reviewConfiguration: AppReviewConfiguration?
     private let reviewAgents: FixtureAgents?
 
     init(
         shellInteractionController: ShellInteractionController,
+        expandedCardInteractionModel: ExpandedCardInteractionModel,
         reviewConfiguration: AppReviewConfiguration? = nil
     ) {
         _shellInteractionController = ObservedObject(wrappedValue: shellInteractionController)
+        self.expandedCardInteractionModel = expandedCardInteractionModel
         self.reviewConfiguration = reviewConfiguration
         self.reviewAgents = ReviewFixtureResolver.resolve(reviewConfiguration)
     }
@@ -40,6 +43,7 @@ struct IslandRootView: View {
 
         PromotionContainerView(
             coordinator: motionCoordinator,
+            expandedCardInteractionModel: expandedCardInteractionModel,
             codex: codexState,
             claude: claudeState,
             codexDiagnostics: codexDiagnostics,

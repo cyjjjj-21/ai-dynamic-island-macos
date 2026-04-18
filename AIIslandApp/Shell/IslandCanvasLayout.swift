@@ -42,6 +42,18 @@ struct IslandCanvasLayout {
         )
     }
 
+    func expandedCardInteractiveFrame(height interactiveHeight: CGFloat?) -> CGRect {
+        let frame = expandedCardFrame
+        let resolvedHeight = interactiveHeight.map { min(frame.height, max(0, $0)) } ?? frame.height
+
+        return CGRect(
+            x: frame.minX,
+            y: frame.minY,
+            width: frame.width,
+            height: resolvedHeight
+        )
+    }
+
     func containsShellPoint(_ point: CGPoint) -> Bool {
         guard shellFrame.contains(point) else {
             return false
@@ -54,18 +66,29 @@ struct IslandCanvasLayout {
         return shellHitRegion.containsInteractivePoint(localPoint)
     }
 
-    func containsPointer(_ point: CGPoint, shellState: ShellInteractionState) -> Bool {
+    func containsPointer(
+        _ point: CGPoint,
+        shellState: ShellInteractionState,
+        expandedCardInteractiveHeight: CGFloat? = nil
+    ) -> Bool {
         if containsShellPoint(point) {
             return true
         }
 
         switch shellState {
         case .hoverExpanded, .pinnedExpanded:
-            return expandedCardFrame.contains(point)
+            return expandedCardInteractiveFrame(height: expandedCardInteractiveHeight).contains(point)
         case .collapsing:
             return false
         case .collapsed:
             return false
         }
+    }
+
+    func containsExpandedCardInteractivePoint(
+        _ point: CGPoint,
+        expandedCardInteractiveHeight: CGFloat? = nil
+    ) -> Bool {
+        expandedCardInteractiveFrame(height: expandedCardInteractiveHeight).contains(point)
     }
 }

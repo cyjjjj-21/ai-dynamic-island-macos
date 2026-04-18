@@ -10,6 +10,7 @@ final class IslandWindowController: NSWindowController {
     private let islandSize = NSSize(width: IslandPalette.canvasWidth, height: IslandPalette.canvasHeight)
     private let islandWindow: NSPanel
     private let shellInteractionController: ShellInteractionController
+    private let expandedCardInteractionModel = ExpandedCardInteractionModel()
     private let hotzoneView = HotzoneTrackingView()
     private var hostingView: NSHostingView<IslandRootView>!
     private var cancellables: Set<AnyCancellable> = []
@@ -53,6 +54,7 @@ final class IslandWindowController: NSWindowController {
         hostingView = NSHostingView(
             rootView: IslandRootView(
                 shellInteractionController: shellInteractionController,
+                expandedCardInteractionModel: expandedCardInteractionModel,
                 reviewConfiguration: reviewConfiguration
             )
         )
@@ -75,8 +77,12 @@ final class IslandWindowController: NSWindowController {
 
             return self.canvasLayout.containsPointer(
                 point,
-                shellState: self.shellInteractionController.state
+                shellState: self.shellInteractionController.state,
+                expandedCardInteractiveHeight: self.expandedCardInteractionModel.interactiveHeight
             )
+        }
+        expandedCardInteractionModel.onInteractionBoundsChanged = { [weak self] in
+            self?.hotzoneView.syncPointerState()
         }
 
         configureHotzoneCallbacks()
@@ -132,7 +138,10 @@ final class IslandWindowController: NSWindowController {
             return
         }
 
-        if canvasLayout.expandedCardFrame.contains(localPoint) {
+        if canvasLayout.containsExpandedCardInteractivePoint(
+            localPoint,
+            expandedCardInteractiveHeight: expandedCardInteractionModel.interactiveHeight
+        ) {
             shellInteractionController.send(.clickExpandedCard)
             islandWindow.orderFront(nil)
             hotzoneView.syncPointerState()
